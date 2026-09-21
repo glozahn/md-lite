@@ -2,6 +2,13 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Local signing settings live in a git-ignored file so account identifiers stay out of the repository.
+if [ -f scripts/notarize.env ]; then
+    # shellcheck source=/dev/null
+    source scripts/notarize.env
+fi
+export MDLITE_SIGNING_IDENTITY ASC_KEY_ID ASC_ISSUER_ID ASC_API_KEY_PATH
+
 : "${MDLITE_SIGNING_IDENTITY:?Set MDLITE_SIGNING_IDENTITY to your Developer ID Application certificate name}"
 : "${ASC_KEY_ID:?Set ASC_KEY_ID to your App Store Connect key ID}"
 : "${ASC_ISSUER_ID:?Set ASC_ISSUER_ID to your App Store Connect issuer ID}"
