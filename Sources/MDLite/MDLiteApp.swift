@@ -177,7 +177,28 @@ struct ReaderWindow: View {
                     }
                 }.padding(16)
             }
-            Spacer(minLength: 0)
+            if store.isWelcome {
+                VStack(spacing: 9) {
+                    Image(systemName: "arrow.down.doc").font(.system(size: 18, weight: .light))
+                        .foregroundStyle(store.accentColor.opacity(0.75))
+                    Text(store.t("Suelta un Markdown aquí"))
+                        .font(.system(size: 11, weight: .medium))
+                    Text(store.t("o crea una nota nueva"))
+                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 24)
+                .readerGlass(cornerRadius: 16)
+                .padding(.horizontal, 16).padding(.bottom, 16)
+            } else {
+                HStack(spacing: 8) {
+                    Circle().fill(store.accentColor).frame(width: 6, height: 6)
+                    Text(store.t("Lectura local"))
+                        .font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal, 22).padding(.vertical, 18)
+            }
 
         }
     }
