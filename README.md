@@ -36,7 +36,7 @@ Built entirely with native macOS technologies. No Electron, React Native, WebVie
 
 Requires **macOS 14 Sonoma or later**. The current DMG is built for **Apple silicon (arm64)**.
 
-1. Open `MD-Lite-0.2.0-arm64.dmg`.
+1. Open `MD-Lite-0.2.1-arm64.dmg`.
 2. Drag **MD Lite** into **Applications**.
 3. Launch MD Lite and open a Markdown file.
 
