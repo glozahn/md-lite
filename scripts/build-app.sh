@@ -16,6 +16,9 @@ for dependency in swift-markdown swift-cmark; do
         if [ -f "$file" ]; then cp -f "$file" "$APP/Contents/Resources/Licenses/$dependency-$license"; fi
     done
 done
+# Remove a previous envelope before replacing the executable or resources.
+# Otherwise codesign can retain a stale resource seal from an earlier build.
+rm -rf "$APP/Contents/_CodeSignature"
 if [ -n "${MDLITE_SIGNING_IDENTITY:-}" ]; then
     codesign --force --deep --options runtime --timestamp --sign "$MDLITE_SIGNING_IDENTITY" "$APP"
 else
