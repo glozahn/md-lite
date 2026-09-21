@@ -72,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct ReaderWindow: View {
     @ObservedObject var store: ReaderStore
     @State private var isDropTarget = false
+    @State private var showQuickSettings = false
     @Environment(\.colorScheme) private var colorScheme
 
     private var paper: Color { colorScheme == .dark ? Color(red: 0.085, green: 0.095, blue: 0.11) : Color(red: 0.985, green: 0.981, blue: 0.967) }
@@ -258,25 +259,19 @@ struct ReaderWindow: View {
             .buttonStyle(.plain)
             .help(store.t("Dejar una estrella en GitHub"))
             .accessibilityLabel(store.t("Dejar una estrella en GitHub"))
-            Menu {
-                Picker(store.t("Apariencia"), selection: $store.appearance) {
-                    Text(store.t("Sistema")).tag("system")
-                    Text(store.t("Claro")).tag("light")
-                    Text(store.t("Oscuro")).tag("dark")
-                }
-                Divider()
-                Picker(store.t("Idioma"), selection: $store.language) {
-                    Text(store.t("Sistema")).tag("system")
-                    Text("English").tag("en")
-                    Text("Español").tag("es")
-                }
-                Picker(store.t("Color de acento"), selection: $store.accent) {
-                    ForEach(AccentChoice.allCases) { choice in
-                        Text(store.t(choice.label)).tag(choice.rawValue)
-                    }
-                }
-            } label: { Image(systemName: "slider.horizontal.3").font(.system(size: 14)).frame(width: 30, height: 30) }
-                .menuStyle(.borderlessButton).fixedSize().padding(.horizontal, 5).readerGlass(cornerRadius: 12, interactive: true).help(store.t("Tipografía y apariencia")).accessibilityLabel(store.t("Preferencias"))
+            Button { showQuickSettings.toggle() } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 14))
+                    .frame(width: 30, height: 30)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 5)
+            .readerGlass(cornerRadius: 12, interactive: true)
+            .popover(isPresented: $showQuickSettings, arrowEdge: .top) {
+                QuickSettingsView(store: store)
+            }
+            .help(store.t("Tipografía y apariencia"))
+            .accessibilityLabel(store.t("Preferencias"))
         }.padding(.horizontal, 24).frame(height: 66)
     }
 
@@ -300,6 +295,49 @@ struct ReaderWindow: View {
         }.font(.system(size: 9)).foregroundStyle(.tertiary)
             .padding(.horizontal, 28).frame(height: 34)
             .overlay(alignment: .top) { Rectangle().fill(.primary.opacity(0.05)).frame(height: 1) }
+    }
+}
+
+struct QuickSettingsView: View {
+    @ObservedObject var store: ReaderStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            quickPicker(store.t("Apariencia"), selection: $store.appearance, options: [
+                ("system", store.t("Sistema")), ("light", store.t("Claro")), ("dark", store.t("Oscuro"))
+            ])
+            quickPicker(store.t("Idioma"), selection: $store.language, options: [
+                ("system", store.t("Sistema")), ("en", "English"), ("es", "Español")
+            ])
+            VStack(alignment: .leading, spacing: 8) {
+                Text(store.t("Color de acento")).font(.system(size: 12, weight: .medium))
+                HStack(spacing: 10) {
+                    ForEach(AccentChoice.allCases) { choice in
+                        Button { store.accent = choice.rawValue } label: {
+                            Circle().fill(Color(nsColor: choice.color))
+                                .frame(width: 20, height: 20)
+                                .overlay { if store.accent == choice.rawValue { Circle().stroke(.primary, lineWidth: 2) } }
+                        }
+                        .buttonStyle(.plain)
+                        .help(store.t(choice.label))
+                    }
+                }
+            }
+        }
+        .padding(18)
+        .frame(width: 280)
+    }
+
+    @ViewBuilder
+    private func quickPicker(_ title: String, selection: Binding<String>, options: [(String, String)]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.system(size: 12, weight: .medium))
+            Picker(title, selection: selection) {
+                ForEach(options, id: \.0) { option in Text(option.1).tag(option.0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+        }
     }
 }
 
