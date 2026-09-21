@@ -17,7 +17,7 @@ for dependency in swift-markdown swift-cmark; do
     done
 done
 if [ -n "${MDLITE_SIGNING_IDENTITY:-}" ]; then
-    codesign --force --deep --options runtime --sign "$MDLITE_SIGNING_IDENTITY" "$APP"
+    codesign --force --deep --options runtime --timestamp --sign "$MDLITE_SIGNING_IDENTITY" "$APP"
 else
     codesign --force --deep --sign - "$APP"
 fi
