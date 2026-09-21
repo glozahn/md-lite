@@ -1,6 +1,6 @@
 # MD Lite
 
-![MD Lite logo](docs/brand/md-lite-mark.svg)
+<img src="docs/brand/md-lite-mark.svg" alt="MD Lite logo" width="180">
 
 **A little space to read.**
 
