@@ -1,150 +1,115 @@
+<div align="center">
+
+<img src="docs/brand/md-lite-mark.svg" width="104" alt="MD Lite logo">
+
 # MD Lite
 
-**A little space to read.** A lightweight, native Markdown reader for macOS, built with SwiftUI and AppKit/TextKit.
+### A little space to read.
 
-A clean window, a translucent sidebar, system-aware accent colors, and comfortable typography keep your documents at the center. MD Lite runs locally, with no accounts or telemetry.
+<p>A lightweight, native Markdown reader and note maker for macOS.<br>SwiftUI · AppKit · TextKit · Swift Markdown</p>
+
+<p>
+  <a href="https://github.com/glozahn/md-lite/releases/latest"><img src="https://img.shields.io/github/v/release/glozahn/md-lite?style=flat-square&color=167c87&label=download" alt="Latest release"></a>
+  <a href="https://github.com/glozahn/md-lite/actions/workflows/swift.yml"><img src="https://img.shields.io/github/actions/workflow/status/glozahn/md-lite/swift.yml?style=flat-square&label=tests" alt="Build status"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/glozahn/md-lite?style=flat-square&color=167c87" alt="MIT license"></a>
+  <img src="https://img.shields.io/badge/macOS-14%2B-111820?style=flat-square" alt="macOS 14 or later">
+</p>
+
+<p><a href="https://github.com/glozahn/md-lite/releases/latest">Download MD Lite</a> · <a href="#build-from-source">Build from source</a> · <a href="#contributing">Contribute</a></p>
+
+</div>
+
+<br>
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+## Read without noise
+
+MD Lite turns Markdown into a calm, native reading experience. A focused canvas, a navigable outline, excellent typography, and no account or web runtime.
+
+</td>
+<td width="50%" valign="top">
+
+## Write it back
+
+Create a note, add headings and tables, preview it live, and save a standard `.md` file. Reading and writing stay in the same small app.
+
+</td>
+</tr>
+</table>
 
 ## Screenshots
 
-### Light
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/light.png" alt="MD Lite in light appearance"></td>
+<td width="50%"><img src="docs/screenshots/dark.png" alt="MD Lite in dark appearance"></td>
+</tr>
+<tr><td align="center"><sub>Light appearance</sub></td><td align="center"><sub>Dark appearance</sub></td></tr>
+</table>
 
-![MD Lite in light appearance](docs/screenshots/light.png)
+<p align="center"><img src="docs/screenshots/tables.png" alt="Native Markdown table rendering" width="82%"></p>
 
-### Dark
+## What it does
 
-![MD Lite in dark appearance](docs/screenshots/dark.png)
+| Read | Create | Feel at home |
+| --- | --- | --- |
+| Native Markdown rendering | New note editor with live preview | Follows macOS language and appearance |
+| Heading outline and recent files | Headings, emphasis, lists, and tables | Liquid Glass on macOS 26 |
+| Native search and copy | Save directly as `.md` | One-click A−, reset, and A+ |
+| Auto-refresh when a file changes | Paste Markdown into Reading View | System or custom accent color |
 
-## Features
+MD Lite supports ATX and Setext headings, paragraphs, emphasis, quotes, ordered and nested lists, code, links, images, task lists, strikethrough, line breaks, and GFM tables with native TextKit cells.
 
-- Open `.md`, `.markdown`, and UTF-8 text files from Finder, the file picker, or drag and drop.
-- Navigate documents with an automatically generated heading outline.
-- Find text with native macOS search, and select and copy content.
-- Switch between rendered Markdown and source view.
-- Read in focus mode with one-click **A− / A+** controls and a size reset button.
-- Paste or type Markdown, then open it in Reading View; use ⇧⌘V to read clipboard text directly.
-- Create notes inside MD Lite with a writing view, live preview, headings, emphasis, lists, and table insertion, then save them as standard `.md` files.
-- Render GFM tables with native cells, borders, wrapping, and column alignment.
-- Follow macOS language, appearance, and accent color by default, or override each in Reading Preferences.
-- Native Liquid Glass controls and sidebar on macOS 26; translucent material on macOS 14 and 15.
-- Reopen recent files and automatically refresh when your editor saves changes.
-- Installing the app registers `.md` and `.markdown` files with Finder so they can be opened directly in MD Lite.
-- See an approximate word count and reading time.
+## Download
 
-Built entirely with native macOS technologies. No Electron, React Native, WebView, or JavaScript runtime.
+Requires **macOS 14 Sonoma or later** and **Apple silicon**.
 
-## Installation
-
-Requires **macOS 14 Sonoma or later**. The current DMG is built for **Apple silicon (arm64)**.
-
-1. Open `MD-Lite-0.2.1-arm64.dmg`.
+1. Download the latest [DMG from GitHub Releases](https://github.com/glozahn/md-lite/releases/latest).
 2. Drag **MD Lite** into **Applications**.
-3. Launch MD Lite and open a Markdown file.
+3. Open a `.md` file from Finder or press **⌘O** inside the app.
 
-This development build is ad hoc signed, not Developer ID signed or notarized. If macOS shows a malware verification warning after downloading the DMG, close the warning, then Control-click **MD Lite.app** in Applications and choose **Open**. Confirm **Open** once. Developer ID signing and Apple notarization are still needed to remove this first-launch step for public distribution. You can also build the app locally using the instructions below.
-
-### Developer ID and notarization
-
-The repository never stores certificates or private API keys. Once a Developer ID Application certificate is installed in your login keychain, set its exact name and notarize locally:
-
-```sh
-export MDLITE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)"
-export ASC_KEY_ID="your-key-id"
-export ASC_ISSUER_ID="your-issuer-id"
-export ASC_API_KEY_PATH="$HOME/.app-store-connect/AuthKey_${ASC_KEY_ID}.p8"
-./scripts/notarize-app.sh
-```
-
-The script signs with the hardened runtime, submits the DMG to Apple, staples the ticket, and verifies the result. The current machine has the App Store Connect key file but no Developer ID Application identity installed yet.
-
-The interface supports **English and Spanish**. System mode follows your macOS preferred language order and falls back to English when no supported language is available. The preferences button in the toolbar lets you override language, light/dark appearance, and accent color. Changes apply immediately and are saved locally. Native system dialogs use the OS language.
-
-To read pasted Markdown, click **Paste Markdown**, paste or type your text, then choose **Reading View**. **⇧⌘V** reads text directly from the clipboard. Pasted documents are temporary and are not saved when the app closes.
+The current public build is ad hoc signed and not notarized. If Gatekeeper shows a warning, close it, Control-click **MD Lite.app** in Applications, choose **Open**, and confirm once. Public notarized builds require a Developer ID certificate and Apple notarization.
 
 ## Build from source
 
-Use **Xcode 26 or later** to compile the Liquid Glass APIs. The project targets macOS 14 and uses a Swift 5.9 package manifest; the current build has been verified with Xcode's Swift 6.3.3 toolchain. The first build needs internet access to fetch Swift package dependencies.
-
-Open `Package.swift` in Xcode, or run:
+Use Xcode 26 or later. The package targets macOS 14 and uses Swift 5.9 or later.
 
 ```sh
-swift run MDLite
-```
-
-Build the release application:
-
-```sh
+git clone https://github.com/glozahn/md-lite.git
+cd md-lite
+swift test
 ./scripts/build-app.sh
 open "dist/MD Lite.app"
 ```
 
-Build a disk image:
+Create a DMG with `./scripts/build-dmg.sh`. The repository also includes `scripts/notarize-app.sh` for Developer ID signing and Apple notarization. Certificates and private keys are never stored in the repository.
 
-```sh
-./scripts/build-dmg.sh
-```
-
-The scripts build for your Mac's architecture, generate the app icon, bundle dependency license notices, and apply an ad hoc signature. The DMG includes the app, an Applications shortcut, and installation instructions. Artifacts are written to `dist/`.
-
-## Keyboard shortcuts
+## Shortcuts
 
 | Action | Shortcut |
 | --- | --- |
 | Open a document | ⌘O |
 | Find in document | ⌘F |
 | Paste and read clipboard Markdown | ⇧⌘V |
+| New note | ⌘N |
 | Toggle focus mode | ⇧⌘F |
 | Toggle source view | ⇧⌘S |
-| Increase text size | ⌘+ |
-| Decrease text size | ⌘− |
-| Reset text size | ⌘0 |
+| Increase / reset / decrease text | ⌘+ · ⌘0 · ⌘− |
 | Reload document | ⌘R |
 
-## Markdown support
+## Privacy and scope
 
-MD Lite uses [Swift Markdown](https://github.com/swiftlang/swift-markdown), powered by cmark-gfm, to parse documents and renders the result as native attributed text.
+Documents stay on your Mac. Preferences and recent file paths are stored locally. MD Lite has no account, analytics, telemetry, or automatic network requests. It is a reader and note maker, not a collaborative editor.
 
-Supported elements include ATX and Setext headings, paragraphs, bold and italic text, blockquotes, ordered and nested lists, thematic breaks, inline and fenced code, escaped characters, reference links, and line breaks. GFM strikethrough, task lists, and tables are also supported. Tables use native TextKit cells with equal-width columns, header styling, borders, text wrapping, and left/center/right alignment.
+## Contributing
 
-Local images are displayed inline. Remote images are presented as links and are only opened when you choose to open them.
+Issues and pull requests are welcome. For rendering issues, include a small Markdown example, your macOS version, and the expected result.
 
-### Current limitations
+## Credits and license
 
-- HTML is displayed as text, except for `<br>` line breaks.
-- Mermaid, LaTeX, syntax highlighting, and internal anchor navigation are not implemented.
-- Documents are limited to 5 MB and local images to 20 MB. Very complex content may still affect rendering performance.
-- MD Lite is a reader and does not edit or save changes to your documents.
+Inspired by [Markdown Guide](https://www.markdownguide.org/basic-syntax/), [QuickMD](https://qmd.app/), and [Typora](https://typora.io/). MD Lite is an independent project and is not affiliated with them.
 
-## Privacy
-
-Documents stay in their original locations on your Mac. Preferences and recent file paths are stored locally in UserDefaults. The app makes no automatic network requests and includes no accounts, analytics, or telemetry. Opening an external link hands it to the appropriate application.
-
-## Development
-
-```sh
-swift build
-swift test
-```
-
-| File | Responsibility |
-| --- | --- |
-| `Sources/MDLite/MDLiteApp.swift` | Window, menus, sidebar, and application lifecycle |
-| `Sources/MDLite/ReaderStore.swift` | Documents, preferences, recent files, and file observation |
-| `Sources/MDLite/MarkdownRenderer.swift` | Markdown tree to attributed text and document outline |
-| `Sources/MDLite/ReadingPreferences.swift` | English/Spanish strings, language resolution, and accent colors |
-| `Sources/MDLite/NativeReader.swift` | NSTextView integration and native search |
-| `scripts/build-app.sh` | Release app packaging and ad hoc signing |
-| `scripts/build-dmg.sh` | Compressed disk image packaging and verification |
-
-Tests cover Unicode heading ranges, reference and relative links, text formatting, lists, code, line breaks, renderer reuse, link scheme filtering, table structure and alignment, system language selection, and preservation of pasted text when changing preferences. GitHub Actions runs the tests and builds the app on macOS.
-
-Contributions are welcome. Please include a small Markdown example when reporting a rendering issue, along with your macOS version and the expected result.
-
-## Inspiration
-
-Inspired by the syntax documented in [Markdown Guide](https://www.markdownguide.org/basic-syntax/), the direct reading experience of [QuickMD](https://qmd.app/), and the visual clarity of [Typora](https://typora.io/). MD Lite is an independent native implementation and is not affiliated with these projects.
-
-## License
-
-MD Lite is released under the [MIT License](LICENSE).
-
-Swift Markdown and cmark-gfm retain their own licenses. Their license notices are included in the packaged application under `Contents/Resources/Licenses`.
+MD Lite is released under the [MIT License](LICENSE). Swift Markdown and cmark-gfm retain their own licenses; their notices ship inside the application bundle.
