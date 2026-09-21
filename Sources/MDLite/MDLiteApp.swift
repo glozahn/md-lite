@@ -147,12 +147,6 @@ struct ReaderWindow: View {
                     .font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading)
                     .padding(11)
             }.buttonStyle(.plain).padding(.horizontal, 16)
-            Button(action: store.associateMarkdownFiles) {
-                Label(store.t("Asociar archivos Markdown"), systemImage: "doc.badge.gearshape")
-                    .font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(11)
-            }.buttonStyle(.plain).padding(.horizontal, 16)
-
             ScrollView {
                 VStack(alignment: .leading, spacing: 6) {
                     sectionLabel(store.t("DOCUMENTO"))
@@ -259,6 +253,9 @@ struct ReaderWindow: View {
             .buttonStyle(.plain)
             .help(store.t("Dejar una estrella en GitHub"))
             .accessibilityLabel(store.t("Dejar una estrella en GitHub"))
+            toolButton("doc.badge.gearshape", label: store.t("Asociar archivos Markdown")) {
+                store.associateMarkdownFiles()
+            }
             Button { showQuickSettings.toggle() } label: {
                 Image(systemName: "slider.horizontal.3")
                     .font(.system(size: 14))

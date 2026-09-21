@@ -23,7 +23,10 @@ final class ReaderStore: ObservableObject {
     @Published var findRequest = 0
     @AppStorage("fontSize") var fontSize: Double = 17
     @Published var appearance = UserDefaults.standard.string(forKey: "appearance") ?? "system" {
-        didSet { UserDefaults.standard.set(appearance, forKey: "appearance") }
+        didSet {
+            UserDefaults.standard.set(appearance, forKey: "appearance")
+            applyWindowAppearance()
+        }
     }
     @Published var language = UserDefaults.standard.string(forKey: "language") ?? "system" {
         didSet {
@@ -43,6 +46,18 @@ final class ReaderStore: ObservableObject {
     var accentColor: Color { Color(nsColor: accentNSColor) }
     func t(_ key: String) -> String { ReaderLanguage.text(key, language: resolvedLanguage) }
     private var localeObserver: NSObjectProtocol?
+
+    private func applyWindowAppearance() {
+        let requested: NSAppearance?
+        switch appearance {
+        case "dark": requested = NSAppearance(named: .darkAqua)
+        case "light": requested = NSAppearance(named: .aqua)
+        default: requested = nil
+        }
+        DispatchQueue.main.async {
+            NSApp.windows.forEach { $0.appearance = requested }
+        }
+    }
 
     private func updateLanguage() {
         if isWelcome {

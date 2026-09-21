@@ -24,16 +24,23 @@ struct NativeReader: NSViewRepresentable {
         text.autoresizingMask = [.width]
         text.textContainer?.widthTracksTextView = true
         text.linkTextAttributes = [.foregroundColor: store.accentNSColor, .underlineStyle: NSUnderlineStyle.single.rawValue]
+        text.delegate = context.coordinator
+        context.coordinator.store = store
         scroll.documentView = text
         return scroll
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         guard let text = scroll.documentView as? NSTextView else { return }
+        context.coordinator.store = store
+        text.isEditable = store.showSource
+        text.isSelectable = true
         text.linkTextAttributes = [.foregroundColor: store.accentNSColor, .underlineStyle: NSUnderlineStyle.single.rawValue]
         if !text.attributedString().isEqual(to: store.rendered.text) {
             let origin = scroll.contentView.bounds.origin
+            context.coordinator.isUpdating = true
             text.textStorage?.setAttributedString(store.rendered.text)
+            context.coordinator.isUpdating = false
             text.frame.size.width = scroll.contentSize.width
             scroll.contentView.scroll(to: origin)
         }
@@ -51,5 +58,15 @@ struct NativeReader: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
-    final class Coordinator { var findRequest = 0 }
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var findRequest = 0
+        weak var store: ReaderStore?
+        var isUpdating = false
+
+        func textDidChange(_ notification: Notification) {
+            guard !isUpdating, let text = notification.object as? NSTextView, let store, store.showSource else { return }
+            store.source = text.string
+            store.rebuild()
+        }
+    }
 }
