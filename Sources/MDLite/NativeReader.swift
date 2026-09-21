@@ -65,8 +65,7 @@ struct NativeReader: NSViewRepresentable {
 
         func textDidChange(_ notification: Notification) {
             guard !isUpdating, let text = notification.object as? NSTextView, let store, store.showSource else { return }
-            store.source = text.string
-            store.rebuild()
+            store.updateSourceFromEditor(text.string)
         }
     }
 }

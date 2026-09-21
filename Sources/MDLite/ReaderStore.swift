@@ -205,6 +205,17 @@ final class ReaderStore: ObservableObject {
         }
     }
 
+    func updateSourceFromEditor(_ updated: String) {
+        source = updated
+        rebuild()
+        guard let fileURL else { return }
+        do {
+            try updated.write(to: fileURL, atomically: true, encoding: .utf8)
+        } catch {
+            self.error = "\(t("No se pudo guardar")): \(error.localizedDescription)"
+        }
+    }
+
     func zoom(_ delta: Double) {
         fontSize = min(28, max(12, fontSize + delta))
         rebuild()
