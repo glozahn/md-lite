@@ -25,7 +25,8 @@ Installation
 Requires macOS 14 or later and a Mac matching the architecture in the DMG filename.
 
 This development build is ad hoc signed and has not been notarized by Apple.
-macOS may block downloaded copies. You may also build the app from source.
+If macOS blocks it, close the warning, then Control-click MD Lite.app in Applications,
+choose Open, and confirm Open once. You may also build the app from source.
 
 Open Markdown files with Command-O or drag them into the window.
 The application follows your system language (English or Spanish).

@@ -40,7 +40,7 @@ Requires **macOS 14 Sonoma or later**. The current DMG is built for **Apple sili
 2. Drag **MD Lite** into **Applications**.
 3. Launch MD Lite and open a Markdown file.
 
-This development build is ad hoc signed, not Developer ID signed or notarized. macOS may block a downloaded copy. Developer ID signing and Apple notarization are still needed for a standard public distribution. You can also build the app locally using the instructions below.
+This development build is ad hoc signed, not Developer ID signed or notarized. If macOS shows a malware verification warning after downloading the DMG, close the warning, then Control-click **MD Lite.app** in Applications and choose **Open**. Confirm **Open** once. Developer ID signing and Apple notarization are still needed to remove this first-launch step for public distribution. You can also build the app locally using the instructions below.
 
 The interface supports **English and Spanish**. System mode follows your macOS preferred language order and falls back to English when no supported language is available. The preferences button in the toolbar lets you override language, light/dark appearance, and accent color. Changes apply immediately and are saved locally. Native system dialogs use the OS language.
 
