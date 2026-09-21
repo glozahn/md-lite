@@ -28,7 +28,8 @@ This development build is ad hoc signed and has not been notarized by Apple.
 macOS may block downloaded copies. You may also build the app from source.
 
 Open Markdown files with Command-O or drag them into the window.
-The application interface is currently in Spanish.
+The application follows your system language (English or Spanish).
+Language, appearance, and accent color can be changed in Reading Preferences.
 
 MD Lite is open source under the MIT License.
 Third-party license notices are included inside the application bundle.
@@ -37,5 +38,5 @@ cp LICENSE "$STAGING/LICENSE.txt"
 codesign --verify --deep --strict "$STAGING/MD Lite.app"
 hdiutil create -volname "MD Lite" -srcfolder "$STAGING" -format UDZO -ov "$DMG"
 hdiutil verify "$DMG"
-shasum -a 256 "$DMG" > "$DMG.sha256"
+(cd dist && shasum -a 256 "$(basename "$DMG")" > "$(basename "$DMG").sha256")
 echo "Disk image created: $DMG"

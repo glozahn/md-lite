@@ -7,6 +7,10 @@ final class ReaderStore: ObservableObject {
     static let shared = ReaderStore()
     @Published var source = welcomeMarkdown
     @Published var fileURL: URL?
+    @Published var isPastedDocument = false
+    @Published var showPasteEditor = false
+    @Published var pasteDraft = ""
+    var isWelcome: Bool { fileURL == nil && !isPastedDocument }
     @Published var rendered = RenderedDocument(text: NSAttributedString(), outline: [])
     @Published var recent: [URL] = []
     @Published var error: String?
@@ -16,17 +20,51 @@ final class ReaderStore: ObservableObject {
     @Published var scrollTarget: NSRange?
     @Published var findRequest = 0
     @AppStorage("fontSize") var fontSize: Double = 17
-    @AppStorage("appearance") var appearance = "system"
+    @Published var appearance = UserDefaults.standard.string(forKey: "appearance") ?? "system" {
+        didSet { UserDefaults.standard.set(appearance, forKey: "appearance") }
+    }
+    @Published var language = UserDefaults.standard.string(forKey: "language") ?? "system" {
+        didSet {
+            UserDefaults.standard.set(language, forKey: "language")
+            updateLanguage()
+        }
+    }
+    @Published var accent = UserDefaults.standard.string(forKey: "accent") ?? "system" {
+        didSet {
+            UserDefaults.standard.set(accent, forKey: "accent")
+            rebuild()
+        }
+    }
+    @Published private var systemLanguage = ReaderLanguage.resolve("system")
+    var resolvedLanguage: String { language == "system" ? systemLanguage : ReaderLanguage.resolve(language) }
+    var accentNSColor: NSColor { (AccentChoice(rawValue: accent) ?? .system).color }
+    var accentColor: Color { Color(nsColor: accentNSColor) }
+    func t(_ key: String) -> String { ReaderLanguage.text(key, language: resolvedLanguage) }
+    private var localeObserver: NSObjectProtocol?
+
+    private func updateLanguage() {
+        if isWelcome {
+            source = resolvedLanguage == "es" ? welcomeMarkdown : welcomeMarkdownEnglish
+            selectedHeading = nil
+        }
+        rebuild()
+    }
     private var watcher: DispatchSourceFileSystemObject?
     private var reloadWork: DispatchWorkItem?
 
-    var title: String { fileURL?.deletingPathExtension().lastPathComponent ?? "Bienvenido" }
+    var title: String { fileURL?.deletingPathExtension().lastPathComponent ?? t(isPastedDocument ? "Texto pegado" : "Bienvenido") }
     var wordCount: Int { source.split(whereSeparator: { $0.isWhitespace }).count }
     var readingMinutes: Int { max(1, Int(ceil(Double(wordCount) / 220))) }
 
     init() {
         recent = (UserDefaults.standard.stringArray(forKey: "recentFiles") ?? []).map { URL(fileURLWithPath: $0) }
-        rebuild()
+        updateLanguage()
+        localeObserver = NotificationCenter.default.addObserver(forName: NSLocale.currentLocaleDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in
+                self?.systemLanguage = ReaderLanguage.resolve("system")
+                self?.updateLanguage()
+            }
+        }
     }
 
     func openPanel() {
@@ -45,6 +83,8 @@ final class ReaderStore: ObservableObject {
                 throw ReaderError.tooLarge
             }
             let text = try String(contentsOf: url, encoding: .utf8)
+            reloadWork?.cancel()
+            isPastedDocument = false
             source = text
             fileURL = url
             selectedHeading = nil
@@ -57,7 +97,7 @@ final class ReaderStore: ObservableObject {
             UserDefaults.standard.set(recent.map(\.path), forKey: "recentFiles")
             NSDocumentController.shared.noteNewRecentDocumentURL(url)
             watch(url)
-        } catch { self.error = "No se pudo abrir \(url.lastPathComponent). \(error.localizedDescription)" }
+        } catch { self.error = "\(t("No se pudo abrir")) \(url.lastPathComponent). \(errorMessage(error))" }
     }
 
     func welcome() {
@@ -65,11 +105,44 @@ final class ReaderStore: ObservableObject {
         watcher = nil
         reloadWork?.cancel()
         fileURL = nil
-        source = welcomeMarkdown
+        isPastedDocument = false
+        source = resolvedLanguage == "es" ? welcomeMarkdown : welcomeMarkdownEnglish
         selectedHeading = nil
         showSource = false
         rebuild()
         scrollTarget = NSRange(location: 0, length: 0)
+    }
+
+    func presentPasteEditor() {
+        pasteDraft = isPastedDocument ? source : ""
+        showPasteEditor = true
+    }
+
+    @discardableResult
+    func readPastedText(_ text: String) -> Bool {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        guard text.utf8.count <= 5_000_000 else {
+            error = t("Elige un archivo de texto UTF-8 de hasta 5 MB.")
+            return false
+        }
+        reloadWork?.cancel()
+        watcher?.cancel()
+        watcher = nil
+        fileURL = nil
+        isPastedDocument = true
+        source = text
+        selectedHeading = nil
+        showSource = false
+        rebuild()
+        scrollTarget = NSRange(location: 0, length: 0)
+        showPasteEditor = false
+        return true
+    }
+
+    func readClipboard() {
+        if let text = NSPasteboard.general.string(forType: .string), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            readPastedText(text)
+        } else { presentPasteEditor() }
     }
 
     func rebuild() {
@@ -79,7 +152,7 @@ final class ReaderStore: ObservableObject {
                 .foregroundColor: NSColor.labelColor
             ]), outline: rendered.outline)
         } else {
-            rendered = MarkdownRenderer(size: fontSize, baseURL: fileURL?.deletingLastPathComponent()).render(source)
+            rendered = MarkdownRenderer(size: fontSize, baseURL: fileURL?.deletingLastPathComponent(), accent: accentNSColor, language: resolvedLanguage).render(source)
         }
     }
 
@@ -106,7 +179,12 @@ final class ReaderStore: ObservableObject {
                 rebuild()
             }
             watch(url)
-        } catch { self.error = "No se pudo actualizar el documento. \(error.localizedDescription)" }
+        } catch { self.error = "\(t("No se pudo actualizar el documento.")) \(errorMessage(error))" }
+    }
+
+    private func errorMessage(_ error: Error) -> String {
+        if error is ReaderError { return t("Elige un archivo de texto UTF-8 de hasta 5 MB.") }
+        return error.localizedDescription
     }
 
     private func watch(_ url: URL) {
@@ -176,4 +254,52 @@ Consulta la [guía de Markdown](https://www.markdownguide.org/basic-syntax/) par
 ---
 
 **Abierto por naturaleza.** Código abierto bajo licencia MIT.
+"""
+
+
+let welcomeMarkdownEnglish = """
+# A little space for your ideas.
+
+Less interface. More clarity. **MD Lite** turns your Markdown files into a calm, precise, and entirely native reading experience.
+
+## The essentials, done well
+
+Open a file with **⌘O**, drag it into the window, or choose it in Finder. Your documents stay on your Mac, right where you saved them.
+
+- Typography that gives every word room to breathe.
+- An outline to follow the thread of your ideas.
+- Focus mode to stay with what matters.
+- Automatic refresh when you save changes in your editor.
+
+> Simplicity means making room for what matters.
+
+## From text to thought
+
+Markdown is plain text with intention. Use **bold**, *italic*, links, and `code` without losing the natural flow of writing.
+
+### A small example
+
+```swift
+import SwiftUI
+
+struct Idea: View {
+    var body: some View {
+        Text("Less, but better.")
+    }
+}
+```
+
+1. Open the document you want to read.
+2. Find your ideal text size with ⌘+ and ⌘−.
+3. Enter focus mode with ⇧⌘F.
+
+## Made for your Mac
+
+SwiftUI on the surface. TextKit in every line. A local reader, without accounts, services, or distractions.
+
+Explore the [Markdown guide](https://www.markdownguide.org/basic-syntax/) to learn the syntax.
+
+---
+
+**Open by nature.** Open source under the MIT license.
 """

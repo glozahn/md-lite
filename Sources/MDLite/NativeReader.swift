@@ -9,7 +9,7 @@ struct NativeReader: NSViewRepresentable {
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
         scroll.drawsBackground = false
-        let text = NSTextView()
+        let text = NSTextView(usingTextLayoutManager: false)
         text.isEditable = false
         text.isSelectable = true
         text.drawsBackground = false
@@ -23,13 +23,14 @@ struct NativeReader: NSViewRepresentable {
         text.isHorizontallyResizable = false
         text.autoresizingMask = [.width]
         text.textContainer?.widthTracksTextView = true
-        text.linkTextAttributes = [.foregroundColor: NSColor.systemTeal, .underlineStyle: NSUnderlineStyle.single.rawValue]
+        text.linkTextAttributes = [.foregroundColor: store.accentNSColor, .underlineStyle: NSUnderlineStyle.single.rawValue]
         scroll.documentView = text
         return scroll
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         guard let text = scroll.documentView as? NSTextView else { return }
+        text.linkTextAttributes = [.foregroundColor: store.accentNSColor, .underlineStyle: NSUnderlineStyle.single.rawValue]
         if !text.attributedString().isEqual(to: store.rendered.text) {
             let origin = scroll.contentView.bounds.origin
             text.textStorage?.setAttributedString(store.rendered.text)

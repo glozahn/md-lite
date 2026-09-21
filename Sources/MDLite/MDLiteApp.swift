@@ -10,32 +10,35 @@ struct MDLiteApp: App {
         Window("MD Lite", id: "reader") {
             ReaderWindow(store: store)
                 .frame(minWidth: 720, minHeight: 480)
+                .environment(\.locale, Locale(identifier: store.resolvedLanguage))
                 .preferredColorScheme(store.appearance == "dark" ? .dark : store.appearance == "light" ? .light : nil)
         }
         .defaultSize(width: 1120, height: 800)
         .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button("Abrir Markdown…", action: store.openPanel).keyboardShortcut("o")
-                Menu("Abrir reciente") {
+                Button(store.t("Abrir Markdown…"), action: store.openPanel).keyboardShortcut("o")
+                Button(store.t("Pegar y leer"), action: store.readClipboard).keyboardShortcut("v", modifiers: [.command, .shift])
+                Button(store.t("Pegar Markdown"), action: store.presentPasteEditor)
+                Menu(store.t("Abrir reciente")) {
                     ForEach(store.recent, id: \.self) { url in
                         Button(url.lastPathComponent) { store.open(url) }
                     }
                 }
             }
             CommandGroup(after: .textEditing) {
-                Button("Buscar en el documento") { store.findRequest += 1 }.keyboardShortcut("f")
+                Button(store.t("Buscar en el documento")) { store.findRequest += 1 }.keyboardShortcut("f")
             }
-            CommandMenu("Lectura") {
-                Button(store.focusMode ? "Salir del modo enfoque" : "Modo enfoque") { store.focusMode.toggle() }
+            CommandMenu(store.t("Lectura")) {
+                Button(store.focusMode ? store.t("Salir del modo enfoque") : store.t("Modo enfoque")) { store.focusMode.toggle() }
                     .keyboardShortcut("f", modifiers: [.command, .shift])
-                Toggle("Ver código fuente", isOn: $store.showSource).keyboardShortcut("s", modifiers: [.command, .shift])
+                Toggle(store.t("Ver código fuente"), isOn: $store.showSource).keyboardShortcut("s", modifiers: [.command, .shift])
                 Divider()
-                Button("Aumentar texto") { store.zoom(1) }.keyboardShortcut("+")
-                Button("Reducir texto") { store.zoom(-1) }.keyboardShortcut("-")
-                Button("Tamaño original") { store.fontSize = 17; store.rebuild() }.keyboardShortcut("0")
+                Button(store.t("Aumentar texto")) { store.zoom(1) }.keyboardShortcut("+")
+                Button(store.t("Reducir texto")) { store.zoom(-1) }.keyboardShortcut("-")
+                Button(store.t("Tamaño original")) { store.fontSize = 17; store.rebuild() }.keyboardShortcut("0")
                 Divider()
-                Button("Actualizar", action: store.reload).keyboardShortcut("r")
+                Button(store.t("Actualizar"), action: store.reload).keyboardShortcut("r")
             }
         }
     }
@@ -65,8 +68,8 @@ struct ReaderWindow: View {
         HStack(spacing: 0) {
             if !store.focusMode {
                 sidebar.frame(width: 238)
-                    .background(.ultraThinMaterial)
-                Divider()
+                    .readerGlass(cornerRadius: 18)
+                    .padding(.leading, 10).padding(.vertical, 10)
             }
             VStack(spacing: 0) {
                 toolbar
@@ -79,11 +82,11 @@ struct ReaderWindow: View {
             }
             .background(paper)
         }
-        .tint(.teal)
+        .tint(store.accentColor)
         .background(.background)
         .overlay {
             if isDropTarget {
-                RoundedRectangle(cornerRadius: 16).strokeBorder(.teal, style: StrokeStyle(lineWidth: 3, dash: [8]))
+                RoundedRectangle(cornerRadius: 16).strokeBorder(store.accentColor, style: StrokeStyle(lineWidth: 3, dash: [8]))
                     .padding(10).allowsHitTesting(false)
             }
         }
@@ -92,8 +95,9 @@ struct ReaderWindow: View {
             store.open(url)
             return true
         } isTargeted: { isDropTarget = $0 }
-        .alert("No se pudo leer el archivo", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) {
-            Button("Entendido", role: .cancel) { store.error = nil }
+        .sheet(isPresented: $store.showPasteEditor) { PasteEditor(store: store) }
+        .alert(store.t("No se pudo leer el archivo"), isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) {
+            Button(store.t("Entendido"), role: .cancel) { store.error = nil }
         } message: { Text(store.error ?? "") }
     }
 
@@ -101,55 +105,61 @@ struct ReaderWindow: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 11).fill(.teal.opacity(0.12)).frame(width: 37, height: 37)
-                    Image(systemName: "text.book.closed.fill").font(.system(size: 18, weight: .medium)).foregroundStyle(.teal)
+                    RoundedRectangle(cornerRadius: 11).fill(store.accentColor.opacity(0.12)).frame(width: 37, height: 37)
+                    Image(systemName: "text.book.closed.fill").font(.system(size: 18, weight: .medium)).foregroundStyle(store.accentColor)
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text("MD Lite").font(.system(size: 16, weight: .semibold))
-                    Text("ESPACIO PARA LEER").font(.system(size: 8, weight: .medium)).tracking(1.7).foregroundStyle(.secondary)
+                    Text(store.t("ESPACIO PARA LEER")).font(.system(size: 8, weight: .medium)).tracking(1.7).foregroundStyle(.secondary)
                 }
             }.padding(.top, 48).padding(.horizontal, 22).padding(.bottom, 26)
 
             Button(action: store.openPanel) {
                 HStack {
                     Image(systemName: "plus").font(.system(size: 12, weight: .medium))
-                    Text("Abrir documento").font(.system(size: 12, weight: .medium))
+                    Text(store.t("Abrir documento")).font(.system(size: 12, weight: .medium))
                     Spacer()
                     Text("⌘O").font(.system(size: 10)).foregroundStyle(.tertiary)
                 }.padding(11).background(.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 9))
             }.buttonStyle(.plain).padding(.horizontal, 16)
 
+            Button(action: store.presentPasteEditor) {
+                Label(store.t("Pegar Markdown"), systemImage: "doc.on.clipboard")
+                    .font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(11)
+            }.buttonStyle(.plain).padding(.horizontal, 16).padding(.top, 5)
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 6) {
-                    sectionLabel("DOCUMENTO")
+                    sectionLabel(store.t("DOCUMENTO"))
                     Button { store.welcome() } label: {
-                        Label("Bienvenido", systemImage: "sparkle").font(.system(size: 12))
-                            .foregroundStyle(store.fileURL == nil ? Color.teal : Color.secondary)
+                        Label(store.t("Bienvenido"), systemImage: "sparkle").font(.system(size: 12))
+                            .foregroundStyle(store.isWelcome ? store.accentColor : Color.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading).padding(9)
-                            .background(store.fileURL == nil ? .teal.opacity(0.09) : .clear, in: RoundedRectangle(cornerRadius: 7))
+                            .background(store.isWelcome ? store.accentColor.opacity(0.09) : .clear, in: RoundedRectangle(cornerRadius: 7))
                     }.buttonStyle(.plain)
-                    if store.fileURL != nil {
+                    if !store.isWelcome {
                         Label(store.title, systemImage: "doc.text").font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.teal).lineLimit(1).padding(9)
+                            .foregroundStyle(store.accentColor).lineLimit(1).padding(9)
                     }
-                    sectionLabel("EN ESTA PÁGINA").padding(.top, 16)
+                    sectionLabel(store.t("EN ESTA PÁGINA")).padding(.top, 16)
                     if store.rendered.outline.isEmpty {
-                        Text("Los títulos aparecerán aquí.").font(.system(size: 11)).foregroundStyle(.tertiary).padding(9)
+                        Text(store.t("Los títulos aparecerán aquí.")).font(.system(size: 11)).foregroundStyle(.tertiary).padding(9)
                     }
                     ForEach(store.rendered.outline) { item in
                         Button { store.navigate(item) } label: {
                             HStack(alignment: .top, spacing: 9) {
-                                RoundedRectangle(cornerRadius: 1).fill(store.selectedHeading == item.id ? Color.teal : Color.secondary.opacity(0.25))
+                                RoundedRectangle(cornerRadius: 1).fill(store.selectedHeading == item.id ? store.accentColor : Color.secondary.opacity(0.25))
                                     .frame(width: 2, height: 12).padding(.top, 2)
                                 Text(item.title).font(.system(size: 11, weight: store.selectedHeading == item.id ? .medium : .regular))
-                                    .foregroundStyle(store.selectedHeading == item.id ? Color.teal : Color.secondary)
+                                    .foregroundStyle(store.selectedHeading == item.id ? store.accentColor : Color.secondary)
                                     .lineLimit(2).multilineTextAlignment(.leading)
                                 Spacer(minLength: 0)
                             }.padding(.vertical, 7).padding(.leading, 9 + CGFloat(max(0, item.level - 1)) * 9)
                         }.buttonStyle(.plain)
                     }
                     if !store.recent.isEmpty {
-                        sectionLabel("RECIENTES").padding(.top, 18)
+                        sectionLabel(store.t("RECIENTES")).padding(.top, 18)
                         ForEach(store.recent.prefix(5), id: \.self) { url in
                             Button { store.open(url) } label: {
                                 Label(url.lastPathComponent, systemImage: "doc.plaintext")
@@ -161,10 +171,7 @@ struct ReaderWindow: View {
                 }.padding(16)
             }
             Spacer(minLength: 0)
-            HStack(spacing: 6) {
-                Circle().fill(.teal).frame(width: 5, height: 5)
-                Text("LOCAL. SIMPLE. TUYO.").font(.system(size: 8, weight: .medium)).tracking(1.2).foregroundStyle(.secondary)
-            }.padding(23)
+
         }
     }
 
@@ -173,50 +180,114 @@ struct ReaderWindow: View {
     }
 
     private var toolbar: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 10) {
             if store.focusMode { Spacer().frame(width: 60) }
-            toolButton("sidebar.left", label: store.focusMode ? "Mostrar barra lateral" : "Modo enfoque") { store.focusMode.toggle() }
+            toolButton("sidebar.left", label: store.focusMode ? store.t("Mostrar barra lateral") : store.t("Modo enfoque")) { store.focusMode.toggle() }
             HStack(spacing: 7) {
                 Image(systemName: "doc.text").foregroundStyle(.tertiary)
                 Text(store.title).font(.system(size: 12, weight: .medium)).lineLimit(1)
                 Text(".md").font(.system(size: 10, design: .monospaced)).foregroundStyle(.tertiary)
             }
             Spacer(minLength: 8)
-            toolButton("magnifyingglass", label: "Buscar · ⌘F") { store.findRequest += 1 }
-            toolButton("chevron.left.forwardslash.chevron.right", label: "Ver código fuente · ⇧⌘S", active: store.showSource) { store.showSource.toggle() }
+            toolButton("magnifyingglass", label: store.t("Buscar · ⌘F")) { store.findRequest += 1 }
+            toolButton("chevron.left.forwardslash.chevron.right", label: store.t("Ver código fuente · ⇧⌘S"), active: store.showSource) { store.showSource.toggle() }
+            HStack(spacing: 0) {
+                Button { store.zoom(-1) } label: {
+                    Text("A−").font(.system(size: 12, weight: .medium)).frame(width: 32, height: 30)
+                }.disabled(store.fontSize <= 12).help(store.t("Reducir texto"))
+                    .accessibilityLabel(store.t("Reducir texto"))
+                Button { store.fontSize = 17; store.rebuild() } label: {
+                    Text("\(Int(store.fontSize))").font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary).frame(width: 24, height: 30)
+                }.help(store.t("Tamaño original")).accessibilityLabel(store.t("Tamaño original"))
+                Button { store.zoom(1) } label: {
+                    Text("A+").font(.system(size: 15, weight: .medium)).frame(width: 32, height: 30)
+                }.disabled(store.fontSize >= 28).help(store.t("Aumentar texto"))
+                    .accessibilityLabel(store.t("Aumentar texto"))
+            }.buttonStyle(.plain).readerGlass(cornerRadius: 12, interactive: true)
             Menu {
-                Button("Aumentar texto") { store.zoom(1) }
-                Button("Reducir texto") { store.zoom(-1) }
-                Divider()
-                Picker("Apariencia", selection: $store.appearance) {
-                    Text("Sistema").tag("system")
-                    Text("Claro").tag("light")
-                    Text("Oscuro").tag("dark")
+                Picker(store.t("Apariencia"), selection: $store.appearance) {
+                    Text(store.t("Sistema")).tag("system")
+                    Text(store.t("Claro")).tag("light")
+                    Text(store.t("Oscuro")).tag("dark")
                 }
-            } label: { Image(systemName: "textformat.size").font(.system(size: 14)).frame(width: 25, height: 28) }
-                .menuStyle(.borderlessButton).fixedSize().help("Tipografía y apariencia")
+                Divider()
+                Picker(store.t("Idioma"), selection: $store.language) {
+                    Text(store.t("Sistema")).tag("system")
+                    Text("English").tag("en")
+                    Text("Español").tag("es")
+                }
+                Picker(store.t("Color de acento"), selection: $store.accent) {
+                    ForEach(AccentChoice.allCases) { choice in
+                        Text(store.t(choice.label)).tag(choice.rawValue)
+                    }
+                }
+            } label: { Image(systemName: "slider.horizontal.3").font(.system(size: 14)).frame(width: 30, height: 30) }
+                .menuStyle(.borderlessButton).fixedSize().padding(.horizontal, 5).readerGlass(cornerRadius: 12, interactive: true).help(store.t("Tipografía y apariencia")).accessibilityLabel(store.t("Preferencias"))
         }.padding(.horizontal, 24).frame(height: 66)
     }
 
     private func toolButton(_ symbol: String, label: String, active: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol).font(.system(size: 13)).foregroundStyle(active ? Color.teal : Color.secondary)
-                .frame(width: 28, height: 28).background(active ? .teal.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 6))
+            Image(systemName: symbol).font(.system(size: 13)).foregroundStyle(active ? store.accentColor : Color.secondary)
+                .frame(width: 28, height: 28).background(active ? store.accentColor.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 6))
         }.buttonStyle(.plain).help(label).accessibilityLabel(label)
     }
 
     private var footer: some View {
         HStack(spacing: 8) {
             Image(systemName: "text.alignleft").font(.system(size: 9))
-            Text("\(store.wordCount) palabras")
+            Text("\(store.wordCount) " + store.t("palabras"))
             Text("·")
-            Text("\(store.readingMinutes) min de lectura")
+            Text("\(store.readingMinutes) " + store.t("min de lectura"))
             Spacer()
-            Text(store.showSource ? "CÓDIGO FUENTE" : "MARKDOWN") .tracking(1.1)
-            Circle().fill(.teal.opacity(0.65)).frame(width: 4, height: 4)
+            Text(store.showSource ? store.t("CÓDIGO FUENTE") : store.t("MARKDOWN")) .tracking(1.1)
+            Circle().fill(store.accentColor.opacity(0.65)).frame(width: 4, height: 4)
             Text("UTF-8")
         }.font(.system(size: 9)).foregroundStyle(.tertiary)
             .padding(.horizontal, 28).frame(height: 34)
             .overlay(alignment: .top) { Rectangle().fill(.primary.opacity(0.05)).frame(height: 1) }
+    }
+}
+
+
+struct PasteEditor: View {
+    @ObservedObject var store: ReaderStore
+    @FocusState private var editorFocused: Bool
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(store.t("Pegar Markdown")).font(.title2.weight(.semibold))
+            Text(store.t("Pega o escribe tu Markdown aquí.")).foregroundStyle(.secondary)
+            TextEditor(text: $store.pasteDraft)
+                .font(.system(size: 14, design: .monospaced))
+                .padding(8)
+                .background(.background, in: RoundedRectangle(cornerRadius: 8))
+                .overlay { RoundedRectangle(cornerRadius: 8).stroke(.secondary.opacity(0.2)) }
+                .focused($editorFocused)
+                .accessibilityLabel(store.t("Pegar Markdown"))
+            Text(store.t("Este texto es temporal y no se guarda al cerrar la app."))
+                .font(.caption).foregroundStyle(.secondary)
+            HStack {
+                Button(store.t("Cancelar")) { store.showPasteEditor = false }.keyboardShortcut(.cancelAction)
+                Spacer()
+                Button(store.t("Vista de lectura")) { store.readPastedText(store.pasteDraft) }
+                    .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+                    .disabled(store.pasteDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }.padding(24).frame(width: 620, height: 470)
+            .tint(store.accentColor)
+            .onAppear { editorFocused = true }
+    }
+}
+
+
+extension View {
+    @ViewBuilder
+    func readerGlass(cornerRadius: CGFloat, interactive: Bool = false) -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(.regular.interactive(interactive), in: RoundedRectangle(cornerRadius: cornerRadius))
+        } else {
+            self.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
+        }
     }
 }

@@ -17,10 +17,14 @@ struct RenderedDocument {
 final class MarkdownRenderer {
     let size: CGFloat
     let baseURL: URL?
+    let accent: NSColor
+    let language: String
     private let output = NSMutableAttributedString()
     private var outline: [OutlineItem] = []
 
-    init(size: CGFloat = 17, baseURL: URL? = nil) {
+    init(size: CGFloat = 17, baseURL: URL? = nil, accent: NSColor = .controlAccentColor, language: String = "en") {
+        self.accent = accent
+        self.language = language
         self.size = size
         self.baseURL = baseURL
     }
@@ -92,12 +96,8 @@ final class MarkdownRenderer {
         case let html as HTMLBlock:
             attrs[.font] = NSFont.monospacedSystemFont(ofSize: size * 0.85, weight: .regular)
             append(html.rawHTML + "\n", attrs)
-        case is Table:
-            // Tab stops keep simple GFM tables selectable and entirely native.
-            for section in node.children {
-                if section is Table.Head { tableRow(section, header: true, attrs: attrs) }
-                else { for row in section.children { tableRow(row, header: false, attrs: attrs) } }
-            }
+        case let table as Table:
+            renderTable(table, attrs: attrs)
         case is Paragraph:
             inlineChildren(node, attrs)
             append("\n", attrs)
@@ -106,14 +106,46 @@ final class MarkdownRenderer {
         }
     }
 
-    private func tableRow(_ node: any Markup, header: Bool, attrs: [NSAttributedString.Key: Any]) {
-        var a = attrs
-        a[.font] = NSFont.monospacedSystemFont(ofSize: size * 0.83, weight: header ? .semibold : .regular)
-        for (index, cell) in node.children.enumerated() {
-            if index > 0 { append("   │   ", a) }
-            inlineChildren(cell, a)
+    private func renderTable(_ markdown: Table, attrs: [NSAttributedString.Key: Any]) {
+        let columns = markdown.maxColumnCount
+        guard columns > 0 else { return }
+        let table = NSTextTable()
+        table.numberOfColumns = columns
+        table.layoutAlgorithm = .fixedLayoutAlgorithm
+        table.collapsesBorders = true
+        table.hidesEmptyCells = false
+        table.setValue(100, type: .percentageValueType, for: .width)
+        let rows: [any Markup] = [markdown.head] + markdown.body.children.map { $0 }
+        for (rowIndex, row) in rows.enumerated() {
+            for (columnIndex, cell) in row.children.enumerated() {
+                let block = NSTextTableBlock(table: table, startingRow: rowIndex, rowSpan: 1,
+                                             startingColumn: columnIndex, columnSpan: 1)
+                block.setValue(100 / CGFloat(columns), type: .percentageValueType, for: .width)
+                block.setWidth(10, type: .absoluteValueType, for: .padding)
+                block.setWidth(0.5, type: .absoluteValueType, for: .border)
+                block.setBorderColor(.separatorColor)
+                block.backgroundColor = rowIndex == 0 ? NSColor.quaternaryLabelColor :
+                    (rowIndex.isMultiple(of: 2) ? NSColor.quaternaryLabelColor.withAlphaComponent(0.05) : .clear)
+                block.verticalAlignment = .middleAlignment
+                let paragraph = style()
+                paragraph.paragraphSpacing = 0
+                paragraph.lineSpacing = 3
+                paragraph.textBlocks = [block]
+                if columnIndex < markdown.columnAlignments.count {
+                    switch markdown.columnAlignments[columnIndex] {
+                    case .center: paragraph.alignment = .center
+                    case .right: paragraph.alignment = .right
+                    default: paragraph.alignment = .left
+                    }
+                }
+                var cellAttrs = attrs
+                cellAttrs[.paragraphStyle] = paragraph
+                cellAttrs[.font] = NSFont.systemFont(ofSize: size * 0.92, weight: rowIndex == 0 ? .semibold : .regular)
+                inlineChildren(cell, cellAttrs)
+                append("\n", cellAttrs)
+            }
         }
-        append("\n", a)
+        append("\n", attrs)
     }
 
     private func listItem(_ item: any Markup, marker: String, depth: Int, quote: Bool) {
@@ -156,8 +188,8 @@ final class MarkdownRenderer {
             inlineChildren(node, a)
         case let code as InlineCode:
             a[.font] = NSFont.monospacedSystemFont(ofSize: size * 0.87, weight: .medium)
-            a[.foregroundColor] = NSColor.systemTeal
-            a[.backgroundColor] = NSColor.systemTeal.withAlphaComponent(0.08)
+            a[.foregroundColor] = accent
+            a[.backgroundColor] = accent.withAlphaComponent(0.08)
             append(code.code, a)
         case let link as Markdown.Link:
             if let destination = link.destination, let url = resolve(destination), allowedLink(url) {
@@ -177,7 +209,7 @@ final class MarkdownRenderer {
             } else {
                 if let source = image.source, let url = resolve(source), allowedLink(url) { a[.link] = url }
                 a[.foregroundColor] = NSColor.secondaryLabelColor
-                append("[Imagen: \(image.plainText.isEmpty ? "abrir imagen" : image.plainText)]", a)
+                append("[\(ReaderLanguage.text("Imagen", language: language)): \(image.plainText.isEmpty ? ReaderLanguage.text("abrir imagen", language: language) : image.plainText)]", a)
             }
         case is SoftBreak: append(" ", a)
         case is LineBreak: append("\n", a)

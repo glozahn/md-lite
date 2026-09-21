@@ -44,3 +44,21 @@ final class MarkdownRendererTests: XCTestCase {
         XCTAssertEqual((result.text.attribute(.link, at: 0, effectiveRange: nil) as? URL)?.path, "/tmp/docs/other.md")
     }
 }
+
+extension MarkdownRendererTests {
+    func testNativeTableCellsAndAlignment() {
+        let result = MarkdownRenderer().render("| Name | Count |\n| :--- | ---: |\n| **Long entry** | 42 |\n| Short | 7 |\n\n## After table")
+        let text = result.text.string as NSString
+        let firstStyle = result.text.attribute(.paragraphStyle, at: text.range(of: "Name").location, effectiveRange: nil) as! NSParagraphStyle
+        let countStyle = result.text.attribute(.paragraphStyle, at: text.range(of: "42").location, effectiveRange: nil) as! NSParagraphStyle
+        let firstCell = firstStyle.textBlocks.first as! NSTextTableBlock
+        let countCell = countStyle.textBlocks.first as! NSTextTableBlock
+        XCTAssertTrue(firstCell.table === countCell.table)
+        XCTAssertEqual(firstCell.table.numberOfColumns, 2)
+        XCTAssertEqual(countCell.startingRow, 1)
+        XCTAssertEqual(countCell.startingColumn, 1)
+        XCTAssertEqual(countStyle.alignment, .right)
+        XCTAssertEqual(text.substring(with: result.outline[0].range), "After table\n")
+        XCTAssertFalse(result.text.string.contains("│"))
+    }
+}
