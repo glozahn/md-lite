@@ -5,6 +5,7 @@ import AppKit
 struct MDLiteApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var store = ReaderStore.shared
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
         Window("MD Lite", id: "reader") {
@@ -16,6 +17,9 @@ struct MDLiteApp: App {
         .defaultSize(width: 1120, height: 800)
         .windowStyle(.hiddenTitleBar)
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button(store.t("Acerca de MD Lite")) { openWindow(id: "about") }
+            }
             CommandGroup(replacing: .newItem) {
                 Button(store.t("Abrir Markdown…"), action: store.openPanel).keyboardShortcut("o")
                 Button(store.t("Pegar y leer"), action: store.readClipboard).keyboardShortcut("v", modifiers: [.command, .shift])
@@ -42,6 +46,13 @@ struct MDLiteApp: App {
                 Button(store.t("Actualizar"), action: store.reload).keyboardShortcut("r")
             }
         }
+
+        Window("About MD Lite", id: "about") {
+            AboutView(store: store)
+                .frame(width: 420, height: 360)
+                .preferredColorScheme(store.appearance == "dark" ? .dark : store.appearance == "light" ? .light : nil)
+        }
+        .windowResizability(.contentSize)
     }
 }
 
@@ -275,6 +286,44 @@ struct ReaderWindow: View {
         }.font(.system(size: 9)).foregroundStyle(.tertiary)
             .padding(.horizontal, 28).frame(height: 34)
             .overlay(alignment: .top) { Rectangle().fill(.primary.opacity(0.05)).frame(height: 1) }
+    }
+}
+
+struct AboutView: View {
+    @ObservedObject var store: ReaderStore
+    private let githubURL = URL(string: "https://github.com/glozahn/md-lite")!
+
+    var body: some View {
+        VStack(spacing: 18) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 22)
+                    .fill(store.accentColor.gradient)
+                    .frame(width: 76, height: 76)
+                Image(systemName: "text.book.closed.fill")
+                    .font(.system(size: 34, weight: .medium))
+                    .foregroundStyle(.white)
+            }
+            VStack(spacing: 5) {
+                Text("MD Lite").font(.system(size: 24, weight: .semibold))
+                Text("A little space to read.").foregroundStyle(.secondary)
+                Text("Version 0.2.1 · MIT License").font(.caption).foregroundStyle(.tertiary)
+            }
+            Text(store.t("Un lector Markdown nativo y ligero para macOS."))
+                .multilineTextAlignment(.center).foregroundStyle(.secondary)
+                .padding(.horizontal, 28)
+            Link(destination: githubURL) {
+                Label(store.t("Visitar GitHub y dejar una estrella"), systemImage: "star.fill")
+                    .font(.system(size: 13, weight: .medium))
+                    .padding(.horizontal, 18).padding(.vertical, 10)
+                    .background(store.accentColor, in: Capsule())
+                    .foregroundStyle(.white)
+            }
+            Text("github.com/glozahn/md-lite")
+                .font(.system(size: 11, design: .monospaced)).foregroundStyle(.tertiary)
+        }
+        .padding(28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .tint(store.accentColor)
     }
 }
 
