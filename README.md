@@ -42,6 +42,20 @@ Requires **macOS 14 Sonoma or later**. The current DMG is built for **Apple sili
 
 This development build is ad hoc signed, not Developer ID signed or notarized. If macOS shows a malware verification warning after downloading the DMG, close the warning, then Control-click **MD Lite.app** in Applications and choose **Open**. Confirm **Open** once. Developer ID signing and Apple notarization are still needed to remove this first-launch step for public distribution. You can also build the app locally using the instructions below.
 
+### Developer ID and notarization
+
+The repository never stores certificates or private API keys. Once a Developer ID Application certificate is installed in your login keychain, set its exact name and notarize locally:
+
+```sh
+export MDLITE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+export ASC_KEY_ID="your-key-id"
+export ASC_ISSUER_ID="your-issuer-id"
+export ASC_API_KEY_PATH="$HOME/.app-store-connect/AuthKey_${ASC_KEY_ID}.p8"
+./scripts/notarize-app.sh
+```
+
+The script signs with the hardened runtime, submits the DMG to Apple, staples the ticket, and verifies the result. The current machine has the App Store Connect key file but no Developer ID Application identity installed yet.
+
 The interface supports **English and Spanish**. System mode follows your macOS preferred language order and falls back to English when no supported language is available. The preferences button in the toolbar lets you override language, light/dark appearance, and accent color. Changes apply immediately and are saved locally. Native system dialogs use the OS language.
 
 To read pasted Markdown, click **Paste Markdown**, paste or type your text, then choose **Reading View**. **⇧⌘V** reads text directly from the clipboard. Pasted documents are temporary and are not saved when the app closes.

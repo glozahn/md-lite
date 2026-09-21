@@ -16,5 +16,9 @@ for dependency in swift-markdown swift-cmark; do
         if [ -f "$file" ]; then cp -f "$file" "$APP/Contents/Resources/Licenses/$dependency-$license"; fi
     done
 done
-codesign --force --deep --sign - "$APP"
+if [ -n "${MDLITE_SIGNING_IDENTITY:-}" ]; then
+    codesign --force --deep --options runtime --sign "$MDLITE_SIGNING_IDENTITY" "$APP"
+else
+    codesign --force --deep --sign - "$APP"
+fi
 echo "Application created: $APP"
