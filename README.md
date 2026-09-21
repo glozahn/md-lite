@@ -22,10 +22,12 @@ A clean window, a translucent sidebar, system-aware accent colors, and comfortab
 - Switch between rendered Markdown and source view.
 - Read in focus mode with one-click **A− / A+** controls and a size reset button.
 - Paste or type Markdown, then open it in Reading View; use ⇧⌘V to read clipboard text directly.
+- Create notes inside MD Lite with a writing view, live preview, headings, emphasis, lists, and table insertion, then save them as standard `.md` files.
 - Render GFM tables with native cells, borders, wrapping, and column alignment.
 - Follow macOS language, appearance, and accent color by default, or override each in Reading Preferences.
 - Native Liquid Glass controls and sidebar on macOS 26; translucent material on macOS 14 and 15.
 - Reopen recent files and automatically refresh when your editor saves changes.
+- Installing the app registers `.md` and `.markdown` files with Finder so they can be opened directly in MD Lite.
 - See an approximate word count and reading time.
 
 Built entirely with native macOS technologies. No Electron, React Native, WebView, or JavaScript runtime.

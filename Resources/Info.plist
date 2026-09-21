@@ -16,11 +16,12 @@
 <key>NSPrincipalClass</key><string>NSApplication</string>
 <key>CFBundleDocumentTypes</key><array><dict>
 <key>CFBundleTypeName</key><string>Markdown document</string>
-<key>CFBundleTypeRole</key><string>Viewer</string>
-<key>LSHandlerRank</key><string>Alternate</string>
+<key>CFBundleTypeRole</key><string>Editor</string>
+<key>LSHandlerRank</key><string>Owner</string>
+<key>CFBundleTypeExtensions</key><array><string>md</string><string>markdown</string></array>
 <key>LSItemContentTypes</key><array><string>net.daringfireball.markdown</string><string>public.plain-text</string></array>
 </dict></array>
-<key>UTImportedTypeDeclarations</key><array><dict>
+<key>UTExportedTypeDeclarations</key><array><dict>
 <key>UTTypeIdentifier</key><string>net.daringfireball.markdown</string>
 <key>UTTypeDescription</key><string>Markdown document</string>
 <key>UTTypeConformsTo</key><array><string>public.plain-text</string></array>

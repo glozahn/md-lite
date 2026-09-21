@@ -10,6 +10,8 @@ final class ReaderStore: ObservableObject {
     @Published var isPastedDocument = false
     @Published var showPasteEditor = false
     @Published var pasteDraft = ""
+    @Published var showNoteEditor = false
+    @Published var noteDraft = ""
     var isWelcome: Bool { fileURL == nil && !isPastedDocument }
     @Published var rendered = RenderedDocument(text: NSAttributedString(), outline: [])
     @Published var recent: [URL] = []
@@ -116,6 +118,25 @@ final class ReaderStore: ObservableObject {
     func presentPasteEditor() {
         pasteDraft = isPastedDocument ? source : ""
         showPasteEditor = true
+    }
+
+    func newNote() {
+        noteDraft = "# " + t("Nueva nota") + "\n\n"
+        showNoteEditor = true
+    }
+
+    func saveNote(_ text: String) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+        panel.nameFieldStringValue = "note.md"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try text.write(to: url, atomically: true, encoding: .utf8)
+            showNoteEditor = false
+            open(url)
+        } catch {
+            self.error = "\(t("No se pudo guardar")): \(error.localizedDescription)"
+        }
     }
 
     @discardableResult

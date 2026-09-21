@@ -20,6 +20,7 @@ struct MDLiteApp: App {
                 Button(store.t("Abrir Markdown…"), action: store.openPanel).keyboardShortcut("o")
                 Button(store.t("Pegar y leer"), action: store.readClipboard).keyboardShortcut("v", modifiers: [.command, .shift])
                 Button(store.t("Pegar Markdown"), action: store.presentPasteEditor)
+                Button(store.t("Nueva nota"), action: store.newNote).keyboardShortcut("n")
                 Menu(store.t("Abrir reciente")) {
                     ForEach(store.recent, id: \.self) { url in
                         Button(url.lastPathComponent) { store.open(url) }
@@ -96,6 +97,7 @@ struct ReaderWindow: View {
             return true
         } isTargeted: { isDropTarget = $0 }
         .sheet(isPresented: $store.showPasteEditor) { PasteEditor(store: store) }
+        .sheet(isPresented: $store.showNoteEditor) { NoteEditor(store: store) }
         .alert(store.t("No se pudo leer el archivo"), isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) {
             Button(store.t("Entendido"), role: .cancel) { store.error = nil }
         } message: { Text(store.error ?? "") }
@@ -128,6 +130,11 @@ struct ReaderWindow: View {
                     .font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading)
                     .padding(11)
             }.buttonStyle(.plain).padding(.horizontal, 16).padding(.top, 5)
+            Button(action: store.newNote) {
+                Label(store.t("Nueva nota"), systemImage: "square.and.pencil")
+                    .font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(11)
+            }.buttonStyle(.plain).padding(.horizontal, 16)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 6) {
@@ -277,6 +284,89 @@ struct PasteEditor: View {
         }.padding(24).frame(width: 620, height: 470)
             .tint(store.accentColor)
             .onAppear { editorFocused = true }
+    }
+}
+
+struct NoteEditor: View {
+    @ObservedObject var store: ReaderStore
+    @State private var draft = ""
+    @State private var preview = false
+    @FocusState private var focused: Bool
+
+    private var rendered: NSAttributedString {
+        MarkdownRenderer(size: 16, accent: store.accentNSColor, language: store.resolvedLanguage).render(draft).text
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Text(store.t("Crear nota")).font(.title2.weight(.semibold))
+                Spacer()
+                Picker("", selection: $preview) {
+                    Text(store.t("Escribir")).tag(false)
+                    Text(store.t("Vista previa")).tag(true)
+                }.pickerStyle(.segmented).frame(width: 180)
+            }.padding(.horizontal, 22).padding(.vertical, 16)
+            Divider()
+            if preview {
+                NativePreview(attributed: rendered)
+                    .frame(maxWidth: 760).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                VStack(spacing: 0) {
+                    HStack(spacing: 6) {
+                        editorTool("textformat.size", store.t("Título")) { insert("# ") }
+                        editorTool("textformat.size.smaller", store.t("Subtítulo")) { insert("## ") }
+                        editorTool("bold", store.t("Negrita")) { insert("****", cursorOffset: -2) }
+                        editorTool("list.bullet", store.t("Lista")) { insert("- ") }
+                        editorTool("tablecells", store.t("Tabla")) { insert("| Column 1 | Column 2 |\n| --- | --- |\n| Value | Value |\n") }
+                        Spacer()
+                    }.padding(10).background(.primary.opacity(0.04))
+                    TextEditor(text: $draft)
+                        .font(.system(size: 16, design: .monospaced))
+                        .focused($focused).padding(18)
+                }
+            }
+            Divider()
+            HStack {
+                Text(store.t("Los títulos y tablas se guardan como Markdown estándar."))
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button(store.t("Cancelar")) { store.showNoteEditor = false }.keyboardShortcut(.cancelAction)
+                Button(store.t("Guardar Markdown")) { store.saveNote(draft) }
+                    .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+                    .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }.padding(16)
+        }
+        .frame(width: 900, height: 640)
+        .tint(store.accentColor)
+        .onAppear { draft = store.noteDraft; focused = true }
+    }
+
+    private func insert(_ value: String, cursorOffset: Int = 0) {
+        draft += value
+    }
+
+    private func editorTool(_ icon: String, _ label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) { Image(systemName: icon).frame(width: 30, height: 28) }
+            .buttonStyle(.plain).help(label).accessibilityLabel(label)
+    }
+}
+
+struct NativePreview: NSViewRepresentable {
+    let attributed: NSAttributedString
+    func makeNSView(context: Context) -> NSScrollView {
+        let scroll = NSScrollView()
+        scroll.hasVerticalScroller = true
+        scroll.drawsBackground = false
+        let text = NSTextView(usingTextLayoutManager: false)
+        text.isEditable = false
+        text.drawsBackground = false
+        text.textContainerInset = NSSize(width: 30, height: 26)
+        scroll.documentView = text
+        return scroll
+    }
+    func updateNSView(_ scroll: NSScrollView, context: Context) {
+        (scroll.documentView as? NSTextView)?.textStorage?.setAttributedString(attributed)
     }
 }
 
