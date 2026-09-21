@@ -78,6 +78,19 @@ final class ReaderStore: ObservableObject {
         if panel.runModal() == .OK, let url = panel.url { open(url) }
     }
 
+    func associateMarkdownFiles() {
+        let applicationURL = Bundle.main.bundleURL
+        let types = [UTType(filenameExtension: "md"), UTType(filenameExtension: "markdown")].compactMap { $0 }
+        for type in types {
+            NSWorkspace.shared.setDefaultApplication(at: applicationURL, toOpen: type, completion: { [weak self] error in
+                guard let error else { return }
+                Task { @MainActor in
+                    self?.error = "\(self?.t("No se pudo asociar Markdown") ?? "Unable to associate Markdown"): \(error.localizedDescription)"
+                }
+            })
+        }
+    }
+
     func open(_ url: URL) {
         do {
             let values = try url.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey])

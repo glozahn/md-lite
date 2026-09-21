@@ -80,8 +80,8 @@ struct ReaderWindow: View {
         HStack(spacing: 0) {
             if !store.focusMode {
                 sidebar.frame(width: 238)
-                    .readerGlass(cornerRadius: 18)
-                    .padding(.leading, 10).padding(.vertical, 10)
+                    .sidebarGlass()
+                    .padding(.leading, 10).padding(.top, 10)
             }
             VStack(spacing: 0) {
                 toolbar
@@ -143,6 +143,11 @@ struct ReaderWindow: View {
             }.buttonStyle(.plain).padding(.horizontal, 16).padding(.top, 5)
             Button(action: store.newNote) {
                 Label(store.t("Nueva nota"), systemImage: "square.and.pencil")
+                    .font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(11)
+            }.buttonStyle(.plain).padding(.horizontal, 16)
+            Button(action: store.associateMarkdownFiles) {
+                Label(store.t("Asociar archivos Markdown"), systemImage: "doc.badge.gearshape")
                     .font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading)
                     .padding(11)
             }.buttonStyle(.plain).padding(.horizontal, 16)
@@ -244,6 +249,15 @@ struct ReaderWindow: View {
                 }.disabled(store.fontSize >= 28).help(store.t("Aumentar texto"))
                     .accessibilityLabel(store.t("Aumentar texto"))
             }.buttonStyle(.plain).readerGlass(cornerRadius: 12, interactive: true)
+            Link(destination: URL(string: "https://github.com/glozahn/md-lite")!) {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(store.accentColor)
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .help(store.t("Dejar una estrella en GitHub"))
+            .accessibilityLabel(store.t("Dejar una estrella en GitHub"))
             Menu {
                 Picker(store.t("Apariencia"), selection: $store.appearance) {
                     Text(store.t("Sistema")).tag("system")
@@ -442,6 +456,16 @@ struct NativePreview: NSViewRepresentable {
 
 
 extension View {
+    @ViewBuilder
+    func sidebarGlass() -> some View {
+        let shape = UnevenRoundedRectangle(cornerRadii: .init(topLeading: 18, bottomLeading: 0, bottomTrailing: 0, topTrailing: 18))
+        if #available(macOS 26.0, *) {
+            self.glassEffect(.regular, in: shape)
+        } else {
+            self.background(.ultraThinMaterial, in: shape)
+        }
+    }
+
     @ViewBuilder
     func readerGlass(cornerRadius: CGFloat, interactive: Bool = false) -> some View {
         if #available(macOS 26.0, *) {

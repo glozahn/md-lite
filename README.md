@@ -1,56 +1,30 @@
-<div align="center">
-
-<img src="docs/brand/md-lite-mark.svg" width="104" alt="MD Lite logo">
-
 # MD Lite
 
-### A little space to read.
+![MD Lite logo](docs/brand/md-lite-mark.svg)
 
-<p>A lightweight, native Markdown reader and note maker for macOS.<br>SwiftUI · AppKit · TextKit · Swift Markdown</p>
+**A little space to read.**
 
-<p>
-  <a href="https://github.com/glozahn/md-lite/releases/latest"><img src="https://img.shields.io/github/v/release/glozahn/md-lite?style=flat-square&color=167c87&label=download" alt="Latest release"></a>
-  <a href="https://github.com/glozahn/md-lite/actions/workflows/swift.yml"><img src="https://img.shields.io/github/actions/workflow/status/glozahn/md-lite/swift.yml?style=flat-square&label=tests" alt="Build status"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/glozahn/md-lite?style=flat-square&color=167c87" alt="MIT license"></a>
-  <img src="https://img.shields.io/badge/macOS-14%2B-111820?style=flat-square" alt="macOS 14 or later">
-</p>
+A lightweight, native Markdown reader and note maker for macOS. Built with SwiftUI, AppKit, TextKit, and Swift Markdown.
 
-<p><a href="https://github.com/glozahn/md-lite/releases/latest">Download MD Lite</a> · <a href="#build-from-source">Build from source</a> · <a href="#contributing">Contribute</a></p>
+[![Latest release](https://img.shields.io/github/v/release/glozahn/md-lite?style=flat-square&color=167c87&label=download)](https://github.com/glozahn/md-lite/releases/latest) [![Build status](https://img.shields.io/github/actions/workflow/status/glozahn/md-lite/swift.yml?style=flat-square&label=tests)](https://github.com/glozahn/md-lite/actions/workflows/swift.yml) [![MIT license](https://img.shields.io/github/license/glozahn/md-lite?style=flat-square&color=167c87)](LICENSE) ![macOS 14 or later](https://img.shields.io/badge/macOS-14%2B-111820?style=flat-square)
 
-</div>
-
-<br>
-
-<table>
-<tr>
-<td width="50%" valign="top">
+[Download MD Lite](https://github.com/glozahn/md-lite/releases/latest) · [Build from source](#build-from-source) · [Contribute](#contributing)
 
 ## Read without noise
 
 MD Lite turns Markdown into a calm, native reading experience. A focused canvas, a navigable outline, excellent typography, and no account or web runtime.
 
-</td>
-<td width="50%" valign="top">
-
 ## Write it back
 
 Create a note, add headings and tables, preview it live, and save a standard `.md` file. Reading and writing stay in the same small app.
 
-</td>
-</tr>
-</table>
-
 ## Screenshots
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/light.png" alt="MD Lite in light appearance"></td>
-<td width="50%"><img src="docs/screenshots/dark.png" alt="MD Lite in dark appearance"></td>
-</tr>
-<tr><td align="center"><sub>Light appearance</sub></td><td align="center"><sub>Dark appearance</sub></td></tr>
-</table>
+![MD Lite in light appearance](docs/screenshots/light.png)
 
-<p align="center"><img src="docs/screenshots/tables.png" alt="Native Markdown table rendering" width="82%"></p>
+![MD Lite in dark appearance](docs/screenshots/dark.png)
+
+![Native Markdown table rendering](docs/screenshots/tables.png)
 
 ## What it does
 
@@ -71,7 +45,7 @@ Requires **macOS 14 Sonoma or later** and **Apple silicon**.
 2. Drag **MD Lite** into **Applications**.
 3. Open a `.md` file from Finder or press **⌘O** inside the app.
 
-The current public build is ad hoc signed and not notarized. If Gatekeeper shows a warning, close it, Control-click **MD Lite.app** in Applications, choose **Open**, and confirm once. Public notarized builds require a Developer ID certificate and Apple notarization.
+Signed and notarized releases are published on GitHub. macOS registers MD Lite as the default application for `.md` and `.markdown` files during installation.
 
 ## Build from source
 
