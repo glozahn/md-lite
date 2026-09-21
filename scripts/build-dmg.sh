@@ -2,7 +2,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-./scripts/build-app.sh
+if [ "${MDLITE_SKIP_BUILD:-0}" != "1" ]; then
+    ./scripts/build-app.sh
+fi
 
 APP="dist/MD Lite.app"
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
@@ -24,9 +26,7 @@ Installation
 
 Requires macOS 14 or later and a Mac matching the architecture in the DMG filename.
 
-This development build is ad hoc signed and has not been notarized by Apple.
-If macOS blocks it, close the warning, then Control-click MD Lite.app in Applications,
-choose Open, and confirm Open once. You may also build the app from source.
+This release is signed with a Developer ID certificate and notarized by Apple.
 
 Open Markdown files with Command-O or drag them into the window.
 The application follows your system language (English or Spanish).

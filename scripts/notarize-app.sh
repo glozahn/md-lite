@@ -28,4 +28,8 @@ xcrun notarytool submit "$DMG" \
 xcrun stapler staple "$APP"
 xcrun stapler validate "$APP"
 spctl --assess --type execute --verbose=2 "$APP"
+# Repackage after stapling so the downloadable DMG contains the stapled app.
+MDLITE_SKIP_BUILD=1 ./scripts/build-dmg.sh
+DMG="$(ls -t dist/MD-Lite-*.dmg | head -1)"
 echo "Notarized application: $APP"
+echo "Notarized disk image: $DMG"
