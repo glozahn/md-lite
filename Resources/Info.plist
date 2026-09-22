@@ -22,6 +22,10 @@
 <key>LSItemContentTypes</key><array><string>net.daringfireball.markdown</string><string>public.plain-text</string></array>
 </dict></array>
 <key>UTExportedTypeDeclarations</key><array><dict>
+<key>UTTypeIdentifier</key><string>org.mdlite.tab</string>
+<key>UTTypeDescription</key><string>MD Lite tab</string>
+<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+</dict><dict>
 <key>UTTypeIdentifier</key><string>net.daringfireball.markdown</string>
 <key>UTTypeDescription</key><string>Markdown document</string>
 <key>UTTypeConformsTo</key><array><string>public.plain-text</string></array>

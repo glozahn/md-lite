@@ -30,7 +30,13 @@ struct ShortcutsView: View {
             (store.t("Archivo"), [
                 (store.t("Nueva pestaña"), "⌘ T"), (store.t("Cerrar"), "⌘ W"), (store.t("Nueva nota"), "⌘ N"),
                 (store.t("Abrir"), "⌘ O"), (store.t("Abrir carpeta…"), "⇧ ⌘ O"), (store.t("Guardar"), "⌘ S"), (store.t("Ajustes"), "⌘ ,"),
-                (store.t("Guardar como…"), "⇧ ⌘ S"), (store.t("Pegar y leer"), "⇧ ⌘ V"), (store.t("Volver a cargar"), "⌘ R")
+                (store.t("Guardar como…"), "⇧ ⌘ S"), (store.t("Pegar y leer"), "⇧ ⌘ V"), (store.t("Volver a cargar"), "⌘ R"),
+                (store.t("Imprimir…"), "⌘ P"), (store.t("Nueva ventana"), "⇧ ⌘ N")
+            ]),
+            (store.t("Pestañas"), [
+                (store.t("Pestaña siguiente"), "⇧ ⌘ ]"), (store.t("Pestaña anterior"), "⇧ ⌘ ["),
+                (store.t("Mover al panel izquierdo"), "⌃ ⌘ ←"), (store.t("Mover al panel derecho"), "⌃ ⌘ →"),
+                (store.t("Cerrar panel"), "⌥ ⌘ W")
             ]),
             (store.t("Edición"), [
                 (store.t("Deshacer"), "⌘ Z"), (store.t("Rehacer"), "⇧ ⌘ Z"), (store.t("Buscar"), "⌘ F"),

@@ -413,8 +413,10 @@ final class MarkdownRenderer {
     }
 
     private func checkbox(checked: Bool, attributes: Attributes) -> MDImageCell? {
-        guard let image = MDSymbols.image(checked ? "checkmark.square.fill" : "square", size: size * 0.95,
-                                          color: checked ? accent : .tertiaryLabelColor) else { return nil }
+        let image = checked
+            ? MDSymbols.image("checkmark.square.fill", size: size * 0.95, color: .white, background: accent)
+            : MDSymbols.image("square", size: size * 0.95, color: .tertiaryLabelColor)
+        guard let image else { return nil }
         return MDImageCell(image: image, size: image.size, baseline: -size * 0.16)
     }
 

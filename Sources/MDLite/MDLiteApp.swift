@@ -1,73 +1,68 @@
 import SwiftUI
 import AppKit
 
-struct ReaderWindow: View {
-    @ObservedObject var store: ReaderStore
-    @State private var isDropTarget = false
-    @Namespace private var modeNamespace
+/// One window: the sidebar and one or two panes of tabs.
+struct WorkbenchView: View {
+    @ObservedObject var bench: Workbench
+    @ObservedObject private var prefs = AppPreferences.shared
     @Environment(\.colorScheme) private var colorScheme
 
-    private var paper: Color { colorScheme == .dark ? Color(red: 0.085, green: 0.095, blue: 0.11) : Color(red: 0.985, green: 0.981, blue: 0.967) }
-    private var showSidebar: Bool { store.sidebarVisible && !store.focusMode }
+    private var focused: ReaderStore { bench.focusedStore }
+    private var showSidebar: Bool { prefs.sidebarVisible && !bench.focusMode }
 
     var body: some View {
         HStack(spacing: 0) {
             if showSidebar {
-                Sidebar(store: store)
+                Sidebar(store: focused, bench: bench)
                     .frame(width: 262)
                     .background { sidebarBackground }
                     .transition(.move(edge: .leading).combined(with: .opacity))
             }
-            VStack(spacing: 0) {
-                toolbar
-                if store.mode != .read && !store.focusMode {
-                    FormatBar(store: store)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+            GeometryReader { geometry in
+                HStack(spacing: 0) {
+                    // One ForEach for both layouts keeps each pane's identity, so its text view is never rebuilt.
+                    let panes = bench.focusMode ? [bench.focusedPane] : bench.panes
+                    ForEach(Array(panes.enumerated()), id: \.element.id) { index, pane in
+                        if index > 0 { PaneDivider(bench: bench, width: geometry.size.width) }
+                        PaneColumn(pane: pane, bench: bench, showsSidebarToggle: index == 0 && !bench.focusMode, showSidebar: showSidebar)
+                            .frame(width: panes.count == 2 ? paneWidth(index, total: geometry.size.width) : nil)
+                    }
                 }
-                Rectangle().fill(.primary.opacity(0.07)).frame(height: 1)
-                if store.mode == .read, store.blockedRemoteImages > 0 { remoteBanner }
-                DocumentView(store: store)
-                if !store.focusMode { footer }
+                .coordinateSpace(name: "panes")
             }
-            .background(paper)
         }
         .animation(.snappy(duration: 0.24), value: showSidebar)
-        .animation(.snappy(duration: 0.2), value: store.mode)
-        .tint(store.accentColor)
+        .animation(.snappy(duration: 0.22), value: bench.panes.count)
+        .animation(.snappy(duration: 0.28), value: bench.focusMode)
+        .tint(prefs.accentColor)
         .background(.background)
         .background { hiddenShortcuts }
-        .overlay {
-            if isDropTarget {
-                RoundedRectangle(cornerRadius: 16).strokeBorder(store.accentColor, style: StrokeStyle(lineWidth: 3, dash: [8]))
-                    .padding(10).allowsHitTesting(false)
-            }
-        }
-        .dropDestination(for: URL.self) { urls, _ in
-            let files = urls.filter(\.isFileURL)
-            guard !files.isEmpty else { return false }
-            for url in files {
-                var isFolder: ObjCBool = false
-                if FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder), isFolder.boolValue {
-                    store.setWorkspace(url)
-                } else {
-                    DocumentRouter.shared.open(url, from: store)
-                }
-            }
-            return true
-        } isTargeted: { isDropTarget = $0 }
-        .sheet(isPresented: $store.showPasteEditor) { PasteEditor(store: store) }
-        .sheet(isPresented: $store.showShortcuts) { ShortcutsView(store: store) }
-        .sheet(isPresented: $store.showDefaultAppGuide) { DefaultAppGuide(store: store) }
-        .alert(store.t("No se pudo leer el archivo"), isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) {
-            Button(store.t("Entendido"), role: .cancel) { store.error = nil }
-        } message: { Text(store.error ?? "") }
         .onAppear {
-            store.setDarkAppearance(colorScheme == .dark)
-            store.renderNow()
-            store.refreshDefaultApp()
+            prefs.refreshDefaultApp()
+            bench.allStores.forEach { $0.setDarkAppearance(colorScheme == .dark) }
         }
-        .onChange(of: colorScheme) { _, scheme in store.setDarkAppearance(scheme == .dark) }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in store.refreshDefaultApp() }
+        .onChange(of: colorScheme) { _, scheme in bench.allStores.forEach { $0.setDarkAppearance(scheme == .dark) } }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            prefs.refreshDefaultApp()
+            prefs.forgetCachedTags()
+            bench.refreshWorkspace()
+        }
+    }
+
+    private func paneWidth(_ index: Int, total: CGFloat) -> CGFloat {
+        let left = (total * bench.splitRatio).rounded()
+        return index == 0 ? left : max(0, total - left - 1)
+    }
+
+    /// Extra shortcut aliases that do not need a menu item.
+    private var hiddenShortcuts: some View {
+        ZStack {
+            Button("") { withAnimation(.snappy(duration: 0.24)) { prefs.sidebarVisible.toggle() } }.keyboardShortcut("\\")
+            Button("") { prefs.fontSize = min(28, prefs.fontSize + 1) }.keyboardShortcut("=")
+            Button("") { bench.cycleTab(1) }.keyboardShortcut(.tab, modifiers: .control)
+            Button("") { bench.cycleTab(-1) }.keyboardShortcut(.tab, modifiers: [.control, .shift])
+        }
+        .opacity(0).frame(width: 0, height: 0).accessibilityHidden(true)
     }
 
     private var sidebarBackground: some View {
@@ -76,35 +71,178 @@ struct ReaderWindow: View {
             .overlay(alignment: .trailing) { Rectangle().fill(palette.rail).frame(width: 1) }
             .ignoresSafeArea()
     }
+}
 
-    /// Extra shortcut aliases that do not need a menu item.
-    private var hiddenShortcuts: some View {
-        ZStack {
-            Button("") { withAnimation(.snappy(duration: 0.24)) { store.sidebarVisible.toggle() } }.keyboardShortcut("\\")
-            Button("") { store.zoom(1) }.keyboardShortcut("=")
+/// Draggable line between two panes.
+struct PaneDivider: View {
+    @ObservedObject var bench: Workbench
+    let width: CGFloat
+    var body: some View {
+        Rectangle().fill(Color.primary.opacity(0.1)).frame(width: 1)
+            .overlay { Color.clear.frame(width: 9).contentShape(Rectangle()) }
+            .onHover { inside in if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() } }
+            .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .named("panes")).onChanged { value in
+                guard width > 0 else { return }
+                bench.splitRatio = min(0.78, max(0.22, value.location.x / width))
+            }.onEnded { _ in UserDefaults.standard.set(bench.splitRatio, forKey: "paneRatio") })
+    }
+}
+
+struct PaneColumn: View {
+    @ObservedObject var pane: Pane
+    @ObservedObject var bench: Workbench
+    let showsSidebarToggle: Bool
+    let showSidebar: Bool
+    var body: some View {
+        DocumentColumn(store: pane.selected, pane: pane, bench: bench, showsSidebarToggle: showsSidebarToggle, showSidebar: showSidebar)
+    }
+}
+
+/// A pane: tab strip and controls, the document, and its status line.
+struct DocumentColumn: View {
+    @ObservedObject var store: ReaderStore
+    @ObservedObject var pane: Pane
+    @ObservedObject var bench: Workbench
+    let showsSidebarToggle: Bool
+    let showSidebar: Bool
+    @StateObject private var drop = DropTracker()
+    @State private var showPath = false
+    @Namespace private var modeNamespace
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var paper: Color { colorScheme == .dark ? Color(red: 0.085, green: 0.095, blue: 0.11) : Color(red: 0.985, green: 0.981, blue: 0.967) }
+    private var isFocused: Bool { bench.focusedPaneID == pane.id }
+    /// Tabs get their own row once there is more than one document in the window.
+    private var showTabRow: Bool { pane.tabs.count > 1 || bench.panes.count > 1 }
+    private var isLastPane: Bool { bench.panes.last === pane || store.focusMode }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if store.focusMode {
+                Color.clear.frame(height: 28)
+            } else {
+                if showTabRow {
+                    TabStrip(pane: pane, bench: bench, isFocused: isFocused, leadingInset: showsSidebarToggle && !showSidebar ? 64 : 0)
+                        .padding(.horizontal, 10).padding(.top, 6).frame(height: 40)
+                }
+                toolbar
+                if store.mode != .read {
+                    FormatBar(store: store)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+                Rectangle().fill(.primary.opacity(0.07)).frame(height: 1)
+                if store.mode == .read, store.blockedRemoteImages > 0 { remoteBanner }
+            }
+            GeometryReader { geometry in
+                Group {
+                    if store.isBlank {
+                        EmptyTabView(store: store, bench: bench)
+                    } else {
+                        DocumentView(store: store).id(store.id)
+                    }
+                }
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .overlay { dropOverlay(in: geometry.size) }
+                    .onDrop(of: [.mdliteTab, .fileURL], delegate: PaneDropDelegate(pane: pane, bench: bench, tracker: drop,
+                                                                                  width: geometry.size.width, allowSides: bench.panes.count == 1))
+            }
+            if !store.focusMode { footer }
         }
-        .opacity(0).frame(width: 0, height: 0).accessibilityHidden(true)
+        .background(paper)
+        .simultaneousGesture(TapGesture().onEnded { bench.focus(pane: pane) })
+        .overlay(alignment: .topTrailing) { if store.focusMode { FocusExitButton(store: store) } }
+        .background {
+            if store.focusMode {
+                Button("") { withAnimation(.snappy(duration: 0.28)) { store.focusMode = false } }
+                    .keyboardShortcut(.cancelAction).opacity(0).frame(width: 0, height: 0).accessibilityHidden(true)
+            }
+        }
+        .animation(.snappy(duration: 0.2), value: store.mode)
+        .sheet(isPresented: $store.showPasteEditor) { PasteEditor(store: store) }
+        .sheet(isPresented: $store.showShortcuts) { ShortcutsView(store: store) }
+        .sheet(isPresented: $store.showDefaultAppGuide) { DefaultAppGuide(store: store) }
+        .alert(store.t("No se pudo leer el archivo"), isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) {
+            Button(store.t("Entendido"), role: .cancel) { store.error = nil }
+        } message: { Text(store.error ?? "") }
+        .task(id: store.id) { store.setDarkAppearance(colorScheme == .dark) }
+    }
+
+    @ViewBuilder private func dropOverlay(in size: CGSize) -> some View {
+        if let zone = drop.zone {
+            let half = CGSize(width: size.width / 2, height: size.height)
+            let frame: CGRect = switch zone {
+            case .left: CGRect(origin: .zero, size: half)
+            case .right: CGRect(origin: CGPoint(x: size.width / 2, y: 0), size: half)
+            case .center: CGRect(origin: .zero, size: size)
+            }
+            let label: (String, String) = switch zone {
+            case .left: ("rectangle.lefthalf.inset.filled", store.t("Abrir a la izquierda"))
+            case .right: ("rectangle.righthalf.inset.filled", store.t("Abrir a la derecha"))
+            case .center: ("plus.rectangle.on.rectangle", store.t("Abrir aquí en una pestaña"))
+            }
+            RoundedRectangle(cornerRadius: 14)
+                .fill(store.accentColor.opacity(0.1))
+                .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(store.accentColor.opacity(0.7), lineWidth: 2) }
+                .overlay {
+                    VStack(spacing: 8) {
+                        Image(systemName: label.0).font(.system(size: 26, weight: .light))
+                        Text(label.1).font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundStyle(store.accentColor)
+                    .padding(.horizontal, 16).padding(.vertical, 12)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                }
+                .padding(10)
+                .frame(width: frame.width, height: frame.height)
+                .position(x: frame.midX, y: frame.midY)
+                .allowsHitTesting(false)
+                .animation(.snappy(duration: 0.18), value: zone)
+        }
     }
 
     private var toolbar: some View {
         HStack(spacing: 10) {
-            if !showSidebar { Spacer().frame(width: 62) }
-            toolButton("sidebar.left", label: (showSidebar ? store.t("Ocultar barra lateral") : store.t("Mostrar barra lateral")) + " · ⌃⌘S") {
-                if store.focusMode { store.focusMode = false } else { store.sidebarVisible.toggle() }
+            if showsSidebarToggle {
+                if !showSidebar && !showTabRow { Spacer().frame(width: 62) }
+                toolButton("sidebar.left", label: (showSidebar ? store.t("Ocultar barra lateral") : store.t("Mostrar barra lateral")) + " · ⌃⌘S") {
+                    if store.focusMode { store.focusMode = false } else { store.sidebarVisible.toggle() }
+                }
             }
+            if !showTabRow { titleButton }
+            Spacer(minLength: 8)
+            if !store.isBlank {
+                modeSwitcher
+                toolButton("arrow.up.left.and.arrow.down.right", label: store.t("Modo enfoque") + " · ⇧⌘F") { store.toggleFocus() }
+                toolButton("magnifyingglass", label: store.t("Buscar · ⌘F")) { store.find(.showFindInterface) }
+            }
+            if isLastPane { globalControls }
+        }
+        .padding(.leading, showsSidebarToggle ? 20 : 12).padding(.trailing, 16).frame(height: showTabRow ? 46 : 56)
+    }
+
+    /// File name; hover shows the full path, a click shows where it lives.
+    private var titleButton: some View {
+        Button { showPath.toggle() } label: {
             HStack(spacing: 7) {
                 Image(systemName: store.isNewNote ? "square.and.pencil" : "doc.text").foregroundStyle(.tertiary)
                 Text(store.title).font(.system(size: 12.5, weight: .medium)).lineLimit(1)
                 if store.isDirty {
                     Circle().fill(store.accentColor).frame(width: 6, height: 6)
-                        .help(store.fileURL == nil ? store.t("Sin guardar · ⌘S") : store.t("Guardando…"))
                 } else {
                     Text(".md").font(.system(size: 10, design: .monospaced)).foregroundStyle(.tertiary)
                 }
             }
-            Spacer(minLength: 8)
-            modeSwitcher
-            toolButton("magnifyingglass", label: store.t("Buscar · ⌘F")) { store.find(.showFindInterface) }
+            .padding(.horizontal, 6).padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(store.fileURL?.path ?? store.t("Este documento aún no está guardado."))
+        .popover(isPresented: $showPath, arrowEdge: .bottom) { PathPopover(store: store) }
+        .onDrag { store.dragProvider() }
+    }
+
+    /// Settings shared by every pane; shown once, in the last pane.
+    @ViewBuilder private var globalControls: some View {
             HStack(spacing: 0) {
                 Button { store.zoom(-1) } label: {
                     Text("A−").font(.system(size: 12, weight: .medium)).frame(width: 30, height: 28)
@@ -135,8 +273,6 @@ struct ReaderWindow: View {
             .popover(isPresented: $store.showQuickSettings, arrowEdge: .top) { QuickSettingsView(prefs: store.prefs, store: store) }
             .help(store.t("Tipografía y apariencia"))
             .accessibilityLabel(store.t("Preferencias"))
-        }
-        .padding(.horizontal, 20).frame(height: 56)
     }
 
     private var modeSwitcher: some View {
@@ -208,7 +344,7 @@ struct ReaderWindow: View {
             Text("·")
             Text("\(store.readingMinutes) " + store.t("min de lectura"))
             Text("·")
-            Text("\(Int((store.progress * 100).rounded()))%").monospacedDigit()
+            ProgressLabel(tracker: store.tracker)
             Spacer()
             saveStatus
             Circle().fill(store.accentColor.opacity(0.65)).frame(width: 4, height: 4)
@@ -472,5 +608,119 @@ extension View {
         } else {
             self.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
         }
+    }
+}
+
+
+/// The only control left in focus mode: faint until the pointer comes near.
+private struct FocusExitButton: View {
+    @ObservedObject var store: ReaderStore
+    @State private var hovering = false
+    var body: some View {
+        Button { withAnimation(.snappy(duration: 0.28)) { store.focusMode = false } } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.down.right.and.arrow.up.left").font(.system(size: 11, weight: .semibold))
+                if hovering { Text(store.t("Salir del enfoque")).font(.system(size: 11.5, weight: .medium)) }
+            }
+            .padding(.horizontal, 10).frame(height: 28)
+            .background(.regularMaterial, in: Capsule())
+            .overlay { Capsule().stroke(Color.primary.opacity(0.08)) }
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .opacity(hovering ? 1 : 0.35)
+        .onHover { inside in withAnimation(.easeOut(duration: 0.15)) { hovering = inside } }
+        .help(store.t("Salir del enfoque") + " · ⇧⌘F · esc")
+        .accessibilityLabel(store.t("Salir del enfoque"))
+        .padding(.top, 10).padding(.trailing, 14)
+    }
+}
+
+
+private struct ProgressLabel: View {
+    @ObservedObject var tracker: ReadingTracker
+    var body: some View { Text("\(tracker.percent)%").monospacedDigit() }
+}
+
+
+/// A fresh tab: drop a file here, or open, create or paste one.
+private struct EmptyTabView: View {
+    @ObservedObject var store: ReaderStore
+    @ObservedObject var bench: Workbench
+    @ObservedObject private var prefs = AppPreferences.shared
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 22) {
+                VStack(spacing: 10) {
+                    Image(systemName: "arrow.down.doc").font(.system(size: 34, weight: .light)).foregroundStyle(store.accentColor)
+                    Text(store.t("Suelta un Markdown aquí")).font(.system(size: 18, weight: .semibold))
+                    Text(store.t("o elige qué abrir en esta pestaña.")).font(.system(size: 13)).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 34)
+                .background {
+                    RoundedRectangle(cornerRadius: 18).strokeBorder(store.accentColor.opacity(0.35), style: StrokeStyle(lineWidth: 1.5, dash: [7, 6]))
+                }
+                HStack(spacing: 10) {
+                    action(store.t("Abrir documento"), "plus", "⌘O") { store.openPanel() }
+                    action(store.t("Nueva nota"), "square.and.pencil", "⌘N") { store.newNote() }
+                    action(store.t("Pegar"), "doc.on.clipboard", "⇧⌘V") { store.readClipboard() }
+                }
+                if bench.workspace == nil {
+                    Button { bench.openWorkspacePanel() } label: {
+                        Label(store.t("Abrir carpeta de trabajo"), systemImage: "folder.badge.plus").font(.system(size: 12.5))
+                    }
+                    .buttonStyle(.link)
+                }
+                let recent = Array(prefs.recent.prefix(6))
+                if !recent.isEmpty {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(store.t("RECIENTES")).font(.system(size: 10.5, weight: .semibold)).tracking(1.2).foregroundStyle(.tertiary)
+                            .padding(.horizontal, 10).padding(.bottom, 4)
+                        ForEach(recent, id: \.self) { url in
+                            Button { DocumentRouter.shared.open(url, from: store) } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "doc.text").foregroundStyle(.secondary)
+                                    Text(url.deletingPathExtension().lastPathComponent).font(.system(size: 13, weight: .medium)).lineLimit(1)
+                                    Text(url.deletingLastPathComponent().path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+                                        .font(.system(size: 11)).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.middle)
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(.horizontal, 10).padding(.vertical, 8).contentShape(Rectangle())
+                            }
+                            .buttonStyle(RecentRowStyle())
+                            .help(url.path)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: 560)
+            .padding(40)
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func action(_ title: String, _ symbol: String, _ keys: String, run: @escaping () -> Void) -> some View {
+        Button(action: run) {
+            VStack(spacing: 7) {
+                Image(systemName: symbol).font(.system(size: 17))
+                Text(title).font(.system(size: 12, weight: .medium)).lineLimit(1)
+                Text(keys).font(.system(size: 10)).foregroundStyle(.tertiary)
+            }
+            .frame(maxWidth: .infinity).padding(.vertical, 14)
+            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct RecentRowStyle: ButtonStyle {
+    @State private var hovering = false
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(configuration.isPressed ? 0.08 : (hovering ? 0.045 : 0))))
+            .onHover { hovering = $0 }
     }
 }

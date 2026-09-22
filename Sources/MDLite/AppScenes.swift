@@ -8,7 +8,7 @@ struct MDLiteApp: App {
 
     var body: some Scene {
         WindowGroup("MD Lite", id: "reader", for: DocumentTarget.self) { $target in
-            DocumentScene(target: target)
+            WorkbenchScene(target: target)
         } defaultValue: {
             let last = UserDefaults.standard.string(forKey: "lastWorkspace").map { URL(fileURLWithPath: $0, isDirectory: true) }
             return DocumentTarget(workspace: last.flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil })
@@ -23,45 +23,45 @@ struct MDLiteApp: App {
             AboutView(prefs: prefs)
                 .frame(width: 420, height: 390)
                 .preferredColorScheme(prefs.colorScheme)
+                .background(WindowAccessor { $0.isRestorable = false })
         }
         .windowResizability(.contentSize)
+        .commandsRemoved()
 
         Settings {
             SettingsView(prefs: prefs)
                 .preferredColorScheme(prefs.colorScheme)
+                .background(WindowAccessor { $0.isRestorable = false })
         }
     }
 }
 
-/// One tab: its own document, editor, undo history, and workspace.
-struct DocumentScene: View {
-    let target: DocumentTarget
-    @StateObject private var store = ReaderStore()
+/// One window: its panes, tabs and working folder.
+struct WorkbenchScene: View {
+    @StateObject private var bench: Workbench
     @Environment(\.openWindow) private var openWindow
-    @State private var loaded = false
+
+    init(target: DocumentTarget) {
+        _bench = StateObject(wrappedValue: Workbench(target: target))
+    }
 
     var body: some View {
-        ReaderWindow(store: store)
+        WorkbenchView(bench: bench)
             .frame(minWidth: 760, minHeight: 480)
-            .environment(\.locale, Locale(identifier: store.resolvedLanguage))
-            .preferredColorScheme(store.prefs.colorScheme)
-            .navigationTitle(store.title)
-            .focusedSceneObject(store)
-            .background(WindowAccessor { store.attach($0) })
-            .onAppear {
-                DocumentRouter.shared.openWindow = { openWindow(value: $0) }
-                guard !loaded else { return }
-                loaded = true
-                if let folder = target.workspace, FileManager.default.fileExists(atPath: folder.path) { store.setWorkspace(folder) }
-                if let url = target.url { store.open(url, quiet: true) }
-                DocumentRouter.shared.register(store)
-            }
+            .environment(\.locale, Locale(identifier: bench.focusedStore.resolvedLanguage))
+            .preferredColorScheme(bench.focusedStore.prefs.colorScheme)
+            .navigationTitle(bench.focusedStore.title)
+            .focusedSceneObject(bench)
+            .focusedSceneObject(bench.focusedStore)
+            .background(WindowAccessor { bench.attach($0) })
+            .onAppear { DocumentRouter.shared.openWindow = { openWindow(value: $0) } }
     }
 }
 
 struct AppCommands: Commands {
     @ObservedObject var prefs: AppPreferences
     @FocusedObject private var store: ReaderStore?
+    @FocusedObject private var bench: Workbench?
     @Environment(\.openWindow) private var openWindow
 
     private func t(_ key: String) -> String { prefs.t(key) }
@@ -74,13 +74,20 @@ struct AppCommands: Commands {
             Button(t("Usar MD Lite para abrir .md…")) { (store ?? DocumentRouter.shared.keyStore)?.showDefaultAppGuide = true }
         }
         CommandGroup(replacing: .newItem) {
-            Button(t("Nueva pestaña")) { DocumentRouter.shared.newTab(from: store) }.keyboardShortcut("t")
-            Button(t("Nueva nota")) {
-                if let store, store.canReuseForNewDocument { store.newNote() }
-                else {
-                    DocumentRouter.shared.newTab(from: store)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { DocumentRouter.shared.keyStore?.newNote() }
+            Button(t("Nueva pestaña")) {
+                if let target = bench ?? DocumentRouter.shared.keyBench {
+                    target.newTab()
+                    target.window?.makeKeyAndOrderFront(nil)
+                } else {
+                    openWindow(value: DocumentTarget())
                 }
+            }.keyboardShortcut("t")
+            Button(t("Nueva ventana")) { openWindow(value: DocumentTarget(workspace: bench?.workspace)) }.keyboardShortcut("n", modifiers: [.command, .shift])
+            Button(t("Nueva nota")) {
+                guard let bench = bench ?? DocumentRouter.shared.keyBench else { return }
+                let target = bench.focusedStore.canReuseForNewDocument ? bench.focusedStore : bench.newTab()
+                target.newNote()
+                bench.window?.makeKeyAndOrderFront(nil)
             }.keyboardShortcut("n")
             Button(t("Abrir Markdown…")) { (store ?? DocumentRouter.shared.keyStore)?.openPanel() }.keyboardShortcut("o")
             Button(t("Abrir carpeta…")) { (store ?? DocumentRouter.shared.keyStore)?.openWorkspacePanel() }.keyboardShortcut("o", modifiers: [.command, .shift])
@@ -100,7 +107,14 @@ struct AppCommands: Commands {
             Divider()
             Button(t("Guardar")) { store?.save() }.keyboardShortcut("s").disabled(store == nil)
             Button(t("Guardar como…")) { store?.saveAs() }.keyboardShortcut("s", modifiers: [.command, .shift]).disabled(store == nil)
+            Button(t("Duplicar")) { store?.duplicateDocument() }.disabled(store == nil)
+            Menu(t("Exportar")) {
+                Button(t("HTML…")) { store?.exportHTML() }
+                Button(t("PDF…")) { store?.exportPDF() }
+            }.disabled(store == nil)
             Button(t("Volver a cargar")) { store?.reload() }.keyboardShortcut("r").disabled(store?.fileURL == nil)
+            Divider()
+            Button(t("Imprimir…")) { store?.printDocument() }.keyboardShortcut("p").disabled(store == nil)
         }
         CommandGroup(after: .textEditing) {
             Divider()
@@ -140,6 +154,18 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut("s", modifiers: [.command, .control])
         }
+        CommandGroup(before: .windowList) {
+            Button(t("Pestaña siguiente")) { bench?.cycleTab(1) }.keyboardShortcut("]", modifiers: [.command, .shift]).disabled(bench == nil)
+            Button(t("Pestaña anterior")) { bench?.cycleTab(-1) }.keyboardShortcut("[", modifiers: [.command, .shift]).disabled(bench == nil)
+            Divider()
+            Button(t("Cerrar panel")) { if let bench { bench.closePane(bench.focusedPane) } }
+                .keyboardShortcut("w", modifiers: [.command, .option]).disabled((bench?.panes.count ?? 1) < 2)
+            Button(t("Mover al panel izquierdo")) { if let store { bench?.place(store: store, side: .left) } }
+                .keyboardShortcut(.leftArrow, modifiers: [.command, .control]).disabled(bench == nil)
+            Button(t("Mover al panel derecho")) { if let store { bench?.place(store: store, side: .right) } }
+                .keyboardShortcut(.rightArrow, modifiers: [.command, .control]).disabled(bench == nil)
+            Divider()
+        }
         CommandGroup(before: .toolbar) {
             modeToggle(.read, t("Lectura")).keyboardShortcut("1")
             modeToggle(.edit, t("Editor")).keyboardShortcut("2")
@@ -147,9 +173,7 @@ struct AppCommands: Commands {
             modeToggle(.split, t("Dividida")).keyboardShortcut("4")
             Button(t("Alternar lectura y edición")) { store?.toggleEditing() }.keyboardShortcut("e").disabled(store == nil)
             Divider()
-            Button(store?.focusMode == true ? t("Salir del modo enfoque") : t("Modo enfoque")) {
-                withAnimation(.snappy(duration: 0.24)) { store?.focusMode.toggle() }
-            }
+            Button(store?.focusMode == true ? t("Salir del modo enfoque") : t("Modo enfoque")) { store?.toggleFocus() }
             .keyboardShortcut("f", modifiers: [.command, .shift])
             Divider()
             Button(t("Aumentar texto")) { prefs.fontSize = min(28, prefs.fontSize + 1) }.keyboardShortcut("+")
@@ -181,7 +205,7 @@ struct AppCommands: Commands {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
-        NSWindow.allowsAutomaticWindowTabbing = true
+        NSWindow.allowsAutomaticWindowTabbing = false
     }
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)

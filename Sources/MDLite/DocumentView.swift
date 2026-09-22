@@ -71,18 +71,22 @@ private final class SplitDivider: NSView {
     }
 }
 
+/// Shows one tab's reader/editor. The views live in the store's controller, so they survive tab switches.
 struct DocumentView: NSViewRepresentable {
     @ObservedObject var store: ReaderStore
 
-    func makeCoordinator() -> DocumentController { DocumentController(store: store) }
-    func makeNSView(context: Context) -> NSView { context.coordinator.container }
-    func updateNSView(_ nsView: NSView, context: Context) { context.coordinator.sync() }
+    func makeNSView(context: Context) -> NSView {
+        let view = store.controller.container
+        view.removeFromSuperview()
+        return view
+    }
+    func updateNSView(_ nsView: NSView, context: Context) { store.controller.sync() }
 }
 
 /// Owns the reading view (rendered) and the editor view (styled Markdown source).
 @MainActor
 final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
-    let store: ReaderStore
+    unowned let store: ReaderStore
     private let readerScroll = NSScrollView()
     private let editorScroll = NSScrollView()
     let reader = MDTextView.make()
@@ -121,6 +125,10 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
             text.onToggleTask = { [weak self] offset in self?.store.toggleTask(at: offset) }
             text.onOpenLink = { [weak self] url in _ = self?.store.follow(url) }
             text.localize = { [weak store] key in store?.t(key) ?? key }
+            text.onFocus = { [weak self] in
+                guard let self else { return }
+                DispatchQueue.main.async { self.store.workbench?.focus(self.store) }
+            }
         }
         reader.isEditable = false
         reader.isSelectable = true
@@ -175,10 +183,17 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
             let sameDocument = renderVersion >= 0 && !store.didReplaceDocument
             renderVersion = store.renderVersion
             let origin = readerScroll.contentView.bounds.origin
+            let selection = reader.selectedRange()
             reader.textStorage?.setAttributedString(store.rendered.text)
+            // Replacing the text leaves the selection at its end, and NSTextView scrolls the selection
+            // back into view whenever it resizes, so put it back (or at the top for a new document).
+            let length = reader.textStorage?.length ?? 0
             if sameDocument {
+                reader.setSelectedRange(NSMaxRange(selection) <= length ? selection : NSRange(location: 0, length: 0))
                 readerScroll.contentView.scroll(to: origin)
                 readerScroll.reflectScrolledClipView(readerScroll.contentView)
+            } else {
+                reader.setSelectedRange(NSRange(location: 0, length: 0))
             }
             store.didReplaceDocument = false
         }

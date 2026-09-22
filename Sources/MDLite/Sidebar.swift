@@ -42,6 +42,7 @@ extension View {
 
 struct Sidebar: View {
     @ObservedObject var store: ReaderStore
+    @ObservedObject var bench: Workbench
     @ObservedObject var prefs = AppPreferences.shared
     @Environment(\.colorScheme) private var colorScheme
 
@@ -82,7 +83,8 @@ struct Sidebar: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
-                        WorkspaceSection(store: store, palette: palette)
+                        WorkspaceSection(store: store, bench: bench, palette: palette)
+                        FavoritesSection(store: store, bench: bench, palette: palette)
                         OutlineNavigator(store: store, palette: palette, proxy: proxy).padding(.top, 8)
                         recentSection
                     }
@@ -113,12 +115,15 @@ struct Sidebar: View {
                             Text(url.deletingLastPathComponent().lastPathComponent).foregroundStyle(palette.faint).lineLimit(1)
                         }
                         Spacer(minLength: 0)
+                        TagDots(url: url)
                     }
                     .font(.system(size: 12.5))
                     .padding(.horizontal, 8).padding(.vertical, 6).contentShape(Rectangle())
                 }
                 .buttonStyle(SidebarRowStyle(palette: palette))
                 .help(url.path)
+                .onDrag { NSItemProvider(object: url as NSURL) }
+                .contextMenu { FileMenu(url: url, store: store, bench: bench) }
             }
         }
     }
@@ -187,34 +192,199 @@ struct SidebarRowStyle: ButtonStyle {
     }
 }
 
+/// Colored dots for a file's Finder tags.
+struct TagDots: View {
+    let url: URL
+    @ObservedObject private var prefs = AppPreferences.shared
+    var body: some View {
+        let colors = prefs.tags(of: url).compactMap { prefs.color(forTag: $0) }
+        if !colors.isEmpty {
+            HStack(spacing: -3) {
+                ForEach(Array(colors.prefix(3).enumerated()), id: \.offset) { _, color in
+                    Circle().fill(Color(nsColor: color)).frame(width: 8, height: 8)
+                        .overlay { Circle().stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 1) }
+                }
+            }
+        }
+    }
+}
+
+/// Right-click menu shared by the working folder, favorites, and recent files.
+struct FileMenu: View {
+    let url: URL
+    let store: ReaderStore
+    let bench: Workbench
+    @ObservedObject private var prefs = AppPreferences.shared
+
+    private var openStore: ReaderStore? {
+        DocumentRouter.shared.all.first { $0.fileURL?.standardizedFileURL == url.standardizedFileURL }
+    }
+
+    var body: some View {
+        Button(store.t("Abrir")) { DocumentRouter.shared.open(url, from: store) }
+        Button(store.t("Abrir en una pestaña nueva")) { DocumentRouter.shared.open(url, from: store, newTab: true) }
+        Button(store.t("Abrir a la derecha")) { bench.place(url: url, side: .right) }
+        Divider()
+        Button(store.t("Guardar una copia como…")) {
+            if let copy = DocumentActions.saveCopy(of: url, prefs: prefs) { DocumentRouter.shared.open(copy, from: store, newTab: true) }
+        }
+        Button(store.t("Duplicar")) {
+            if let open = openStore { open.duplicateDocument(); return }
+            if let copy = DocumentActions.duplicate(url, prefs: prefs) {
+                bench.refreshWorkspace()
+                DocumentRouter.shared.open(copy, from: store, newTab: true)
+            }
+        }
+        Menu(store.t("Exportar")) {
+            Button(store.t("HTML…")) { export(html: true) }
+            Button(store.t("PDF…")) { export(html: false) }
+        }
+        Divider()
+        FileExtras(url: url, store: store)
+    }
+
+    private func export(html: Bool) {
+        if let open = openStore { html ? open.exportHTML() : open.exportPDF(); return }
+        guard let text = DocumentActions.source(of: url) else { return }
+        let title = url.deletingPathExtension().lastPathComponent
+        let folder = url.deletingLastPathComponent()
+        if html { DocumentActions.exportHTML(source: text, title: title, suggestedFolder: folder, prefs: prefs) }
+        else { DocumentActions.exportPDF(source: text, title: title, baseURL: folder, suggestedFolder: folder, prefs: prefs) }
+    }
+}
+
+/// Favorite, Finder tags, reveal and copy path for a file.
+struct FileExtras: View {
+    let url: URL
+    let store: ReaderStore
+    @ObservedObject private var prefs = AppPreferences.shared
+
+    var body: some View {
+        Button(prefs.isFavorite(url) ? store.t("Quitar de favoritos") : store.t("Añadir a favoritos")) { prefs.toggleFavorite(url) }
+        Menu(store.t("Etiquetas")) {
+            let current = prefs.tags(of: url)
+            ForEach(prefs.colorTags, id: \.name) { tag in
+                Button { prefs.toggleTag(tag.name, on: url) } label: {
+                    Label {
+                        Text(tag.name)
+                    } icon: {
+                        Image(nsImage: FileMenu.swatch(tag.color, checked: current.contains(tag.name)))
+                    }
+                }
+            }
+            let custom = current.filter { name in !prefs.colorTags.contains { $0.name == name } }
+            if !custom.isEmpty {
+                Divider()
+                ForEach(custom, id: \.self) { name in
+                    Button("✓ " + name) { prefs.toggleTag(name, on: url) }
+                }
+            }
+            Divider()
+            Button(store.t("Nueva etiqueta…")) { prefs.addCustomTag(to: url) }
+            if !current.isEmpty { Button(store.t("Quitar todas las etiquetas")) { prefs.setTags([], on: url) } }
+        }
+        Divider()
+        Button(store.t("Mostrar en Finder")) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+        Button(store.t("Copiar ruta")) {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(url.path, forType: .string)
+        }
+    }
+}
+
+extension FileMenu {
+    /// Menu items only show images, so tag colors are drawn as small swatches.
+    static func swatch(_ color: NSColor, checked: Bool) -> NSImage {
+        let image = NSImage(size: NSSize(width: 14, height: 14), flipped: false) { rect in
+            color.setFill()
+            NSBezierPath(ovalIn: rect.insetBy(dx: 1.5, dy: 1.5)).fill()
+            if checked {
+                NSColor.white.setStroke()
+                let path = NSBezierPath()
+                path.lineWidth = 1.6
+                path.move(to: NSPoint(x: 4.3, y: 7.2))
+                path.line(to: NSPoint(x: 6.3, y: 5))
+                path.line(to: NSPoint(x: 9.8, y: 9.2))
+                path.stroke()
+            }
+            return true
+        }
+        image.isTemplate = false
+        return image
+    }
+}
+
+struct FavoritesSection: View {
+    @ObservedObject var store: ReaderStore
+    @ObservedObject var bench: Workbench
+    let palette: SidebarPalette
+    @ObservedObject private var prefs = AppPreferences.shared
+
+    var body: some View {
+        if !prefs.favorites.isEmpty {
+            HStack(spacing: 6) {
+                Image(systemName: "star").font(.system(size: 10.5))
+                Text(store.t("FAVORITOS")).font(.system(size: 10.5, weight: .semibold)).tracking(1.2)
+            }
+            .foregroundStyle(palette.label).padding(.horizontal, 8).padding(.top, 10).padding(.bottom, 4)
+            ForEach(prefs.favorites, id: \.self) { url in
+                let selected = store.fileURL?.standardizedFileURL == url.standardizedFileURL
+                Button { DocumentRouter.shared.open(url, from: store) } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "star.fill").font(.system(size: 10.5)).foregroundStyle(Color.yellow.opacity(0.9))
+                        Text(url.deletingPathExtension().lastPathComponent).lineLimit(1)
+                        Spacer(minLength: 0)
+                        TagDots(url: url)
+                    }
+                    .font(.system(size: 12.5, weight: selected ? .medium : .regular))
+                    .padding(.horizontal, 8).padding(.vertical, 6).contentShape(Rectangle())
+                }
+                .buttonStyle(SidebarRowStyle(palette: palette, selected: selected, accent: store.accentColor))
+                .help(url.path)
+                .onDrag { NSItemProvider(object: url as NSURL) }
+                .contextMenu { FileMenu(url: url, store: store, bench: bench) }
+            }
+        }
+    }
+}
+
 /// Working folder: every Markdown file under it, as a collapsible tree.
 struct WorkspaceSection: View {
     @ObservedObject var store: ReaderStore
+    @ObservedObject var bench: Workbench
     let palette: SidebarPalette
 
     var body: some View {
-        if let folder = store.workspace {
+        if let folder = bench.workspace {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Image(systemName: "folder").font(.system(size: 10.5))
                     Text(folder.lastPathComponent.uppercased()).font(.system(size: 10.5, weight: .semibold)).tracking(1.1).lineLimit(1)
                     Spacer()
-                    if store.isScanningWorkspace { ProgressView().controlSize(.mini) }
-                    Button { store.refreshWorkspace() } label: { Image(systemName: "arrow.clockwise").font(.system(size: 10)) }
+                    Button { bench.refreshWorkspace() } label: { Image(systemName: "arrow.clockwise").font(.system(size: 10)) }
                         .buttonStyle(.plain).help(store.t("Actualizar carpeta"))
-                    Button { store.setWorkspace(nil) } label: { Image(systemName: "xmark").font(.system(size: 10)) }
+                    Button { bench.setWorkspace(nil) } label: { Image(systemName: "xmark").font(.system(size: 10)) }
                         .buttonStyle(.plain).help(store.t("Cerrar carpeta"))
                 }
                 .foregroundStyle(palette.label).padding(.horizontal, 8).padding(.top, 8).padding(.bottom, 4)
                 .help(folder.path)
-                if store.workspaceTree.isEmpty && !store.isScanningWorkspace {
-                    Text(store.t("Sin archivos Markdown")).font(.system(size: 11.5)).foregroundStyle(palette.faint).padding(8)
+                .contextMenu {
+                    Button(store.t("Mostrar en Finder")) { NSWorkspace.shared.activateFileViewerSelecting([folder]) }
+                    Button(store.t("Actualizar carpeta")) { bench.refreshWorkspace() }
+                    Button(store.t("Cerrar carpeta")) { bench.setWorkspace(nil) }
                 }
-                ForEach(store.workspaceTree) { node in WorkspaceNodeRow(store: store, node: node, depth: 0, palette: palette) }
+                if bench.workspaceTree.isEmpty {
+                    if bench.isScanningWorkspace {
+                        ProgressView().controlSize(.small).padding(8)
+                    } else {
+                        Text(store.t("Sin archivos Markdown")).font(.system(size: 11.5)).foregroundStyle(palette.faint).padding(8)
+                    }
+                }
+                ForEach(bench.workspaceTree) { node in WorkspaceNodeRow(store: store, bench: bench, node: node, depth: 0, palette: palette) }
             }
             .padding(.bottom, 6)
         } else {
-            Button { store.openWorkspacePanel() } label: {
+            Button { bench.openWorkspacePanel() } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "folder.badge.plus").font(.system(size: 12))
                     Text(store.t("Abrir carpeta de trabajo")).font(.system(size: 12))
@@ -230,13 +400,15 @@ struct WorkspaceSection: View {
 
 private struct WorkspaceNodeRow: View {
     @ObservedObject var store: ReaderStore
+    @ObservedObject var bench: Workbench
     let node: FileNode
     let depth: Int
     let palette: SidebarPalette
     @State private var expanded: Bool
 
-    init(store: ReaderStore, node: FileNode, depth: Int, palette: SidebarPalette) {
+    init(store: ReaderStore, bench: Workbench, node: FileNode, depth: Int, palette: SidebarPalette) {
         self.store = store
+        self.bench = bench
         self.node = node
         self.depth = depth
         self.palette = palette
@@ -253,32 +425,46 @@ private struct WorkspaceNodeRow: View {
                     Image(systemName: expanded ? "folder" : "folder.fill").font(.system(size: 11)).foregroundStyle(palette.label)
                     Text(node.name).lineLimit(1)
                     Spacer(minLength: 0)
+                    TagDots(url: node.url)
                 }
                 .font(.system(size: 12.5))
                 .padding(.leading, CGFloat(depth) * 14 + 6).padding(.trailing, 6).padding(.vertical, 5).contentShape(Rectangle())
             }
             .buttonStyle(SidebarRowStyle(palette: palette))
+            .contextMenu {
+                Button(store.t("Mostrar en Finder")) { NSWorkspace.shared.activateFileViewerSelecting([node.url]) }
+                Button(store.t("Usar como carpeta de trabajo")) { bench.setWorkspace(node.url) }
+                Button(store.t("Copiar ruta")) {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(node.url.path, forType: .string)
+                }
+            }
             if expanded, let children = node.children {
-                ForEach(children) { child in WorkspaceNodeRow(store: store, node: child, depth: depth + 1, palette: palette) }
+                ForEach(children) { child in WorkspaceNodeRow(store: store, bench: bench, node: child, depth: depth + 1, palette: palette) }
             }
         } else {
             let selected = store.fileURL?.standardizedFileURL == node.url.standardizedFileURL
             Button {
-                let newTab = NSEvent.modifierFlags.contains(.command)
-                if newTab { DocumentRouter.shared.open(node.url, from: store, newTab: true) }
-                else { store.open(node.url) }
+                if NSEvent.modifierFlags.contains(.command) { DocumentRouter.shared.open(node.url, from: store, newTab: true) }
+                else { DocumentRouter.shared.open(node.url, from: store) }
             } label: {
                 HStack(spacing: 6) {
                     Spacer().frame(width: 10)
                     Image(systemName: "doc.text").font(.system(size: 11)).foregroundStyle(selected ? store.accentColor : palette.label)
                     Text(node.url.deletingPathExtension().lastPathComponent).lineLimit(1)
                     Spacer(minLength: 0)
+                    if AppPreferences.shared.isFavorite(node.url) {
+                        Image(systemName: "star.fill").font(.system(size: 8.5)).foregroundStyle(Color.yellow.opacity(0.9))
+                    }
+                    TagDots(url: node.url)
                 }
                 .font(.system(size: 12.5, weight: selected ? .medium : .regular))
                 .padding(.leading, CGFloat(depth) * 14 + 6).padding(.trailing, 6).padding(.vertical, 5).contentShape(Rectangle())
             }
             .buttonStyle(SidebarRowStyle(palette: palette, selected: selected, accent: store.accentColor))
             .help(node.url.path + "\n" + store.t("⌘-clic para abrir en una pestaña nueva"))
+            .onDrag { NSItemProvider(object: node.url as NSURL) }
+            .contextMenu { FileMenu(url: node.url, store: store, bench: bench) }
         }
     }
 }
@@ -288,6 +474,17 @@ struct OutlineNavigator: View {
     @ObservedObject var store: ReaderStore
     let palette: SidebarPalette
     let proxy: ScrollViewProxy
+    var body: some View {
+        OutlineList(store: store, tracker: store.tracker, palette: palette, proxy: proxy)
+    }
+}
+
+private struct OutlineList: View {
+    @ObservedObject var store: ReaderStore
+    @ObservedObject var tracker: ReadingTracker
+    let palette: SidebarPalette
+    let proxy: ScrollViewProxy
+    @State private var followWork: DispatchWorkItem?
     @State private var collapsed = Set<Int>()
     @State private var filter = ""
     @State private var hovered: Int?
@@ -318,7 +515,7 @@ struct OutlineNavigator: View {
 
     /// The heading that owns the current position, even when it is folded away.
     private var activeVisible: Int? {
-        guard let current = store.currentHeading else { return nil }
+        guard let current = tracker.currentHeading else { return nil }
         let shown = Set(visible.map(\.id))
         if shown.contains(current) { return current }
         guard let index = items.firstIndex(where: { $0.id == current }) else { return nil }
@@ -381,9 +578,15 @@ struct OutlineNavigator: View {
             }
         }
         .onChange(of: store.contentVersion) { _, _ in collapsed = []; filter = "" }
-        .onChange(of: store.currentHeading) { _, id in
-            guard let id = activeVisible ?? id, hovered == nil else { return }
-            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id) }
+        .onChange(of: tracker.currentHeading) { _, _ in
+            // Follow the reader only once scrolling pauses; scrolling the sidebar mid-gesture stutters.
+            followWork?.cancel()
+            let work = DispatchWorkItem {
+                guard hovered == nil, let id = activeVisible else { return }
+                proxy.scrollTo(id)
+            }
+            followWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
         }
     }
 

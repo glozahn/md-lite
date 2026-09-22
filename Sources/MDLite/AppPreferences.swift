@@ -23,6 +23,9 @@ final class AppPreferences: ObservableObject {
     @Published var alwaysLoadRemoteImages: Bool { didSet { defaults.set(alwaysLoadRemoteImages, forKey: "alwaysLoadRemoteImages") } }
     @Published var checkForUpdatesAutomatically: Bool { didSet { defaults.set(checkForUpdatesAutomatically, forKey: "checkForUpdates") } }
     @Published private(set) var recent: [URL]
+    @Published private(set) var favorites: [URL]
+    /// Bumped when a Finder tag changes so rows showing tags refresh.
+    @Published private(set) var tagVersion = 0
     @Published private(set) var defaultApp = DefaultAppStatus()
     @Published private var systemLanguage = ReaderLanguage.resolve("system")
     private var localeObserver: NSObjectProtocol?
@@ -37,6 +40,7 @@ final class AppPreferences: ObservableObject {
         alwaysLoadRemoteImages = defaults.bool(forKey: "alwaysLoadRemoteImages")
         checkForUpdatesAutomatically = defaults.bool(forKey: "checkForUpdates")
         recent = (defaults.stringArray(forKey: "recentFiles") ?? []).map { URL(fileURLWithPath: $0) }
+        favorites = (defaults.stringArray(forKey: "favoriteFiles") ?? []).map { URL(fileURLWithPath: $0) }
         localeObserver = NotificationCenter.default.addObserver(forName: NSLocale.currentLocaleDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.systemLanguage = ReaderLanguage.resolve("system") }
         }
@@ -73,6 +77,69 @@ final class AppPreferences: ObservableObject {
         recent = Array(list.prefix(12))
         defaults.set(recent.map(\.path), forKey: "recentFiles")
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
+    }
+
+    // MARK: Favorites and Finder tags
+
+    func isFavorite(_ url: URL) -> Bool { favorites.contains { $0.standardizedFileURL == url.standardizedFileURL } }
+
+    func toggleFavorite(_ url: URL) {
+        if isFavorite(url) { favorites.removeAll { $0.standardizedFileURL == url.standardizedFileURL } }
+        else { favorites.append(url) }
+        defaults.set(favorites.map(\.path), forKey: "favoriteFiles")
+    }
+
+    /// Finder's color tags, in Finder's order and language.
+    var colorTags: [(name: String, color: NSColor)] {
+        Array(zip(NSWorkspace.shared.fileLabels, NSWorkspace.shared.fileLabelColors).dropFirst()).map { ($0.0, $0.1) }
+    }
+
+    private var tagCache: [String: [String]] = [:]
+
+    func tags(of url: URL) -> [String] {
+        if let cached = tagCache[url.path] { return cached }
+        var fresh = url
+        fresh.removeAllCachedResourceValues()
+        let tags = (try? fresh.resourceValues(forKeys: [.tagNamesKey]).tagNames) ?? []
+        tagCache[url.path] = tags
+        return tags
+    }
+
+    /// Tags may change in Finder while MD Lite is in the background.
+    func forgetCachedTags() {
+        tagCache.removeAll()
+        tagVersion += 1
+    }
+
+    func color(forTag name: String) -> NSColor? { colorTags.first { $0.name == name }?.color }
+
+    func toggleTag(_ name: String, on url: URL) {
+        var tags = tags(of: url)
+        if let index = tags.firstIndex(of: name) { tags.remove(at: index) } else { tags.append(name) }
+        setTags(tags, on: url)
+    }
+
+    func setTags(_ tags: [String], on url: URL) {
+        try? (url as NSURL).setResourceValue(tags, forKey: .tagNamesKey)
+        tagCache[url.path] = nil
+        tagVersion += 1
+    }
+
+    /// Asks for a custom tag name and adds it to the file.
+    func addCustomTag(to url: URL) {
+        let alert = NSAlert()
+        alert.messageText = t("Nueva etiqueta")
+        alert.informativeText = url.lastPathComponent
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        field.placeholderString = t("Nombre de la etiqueta")
+        alert.accessoryView = field
+        alert.addButton(withTitle: t("Añadir"))
+        alert.addButton(withTitle: t("Cancelar"))
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !tags(of: url).contains(name) else { return }
+        setTags(tags(of: url) + [name], on: url)
     }
 
     // MARK: Default Markdown app

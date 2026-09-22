@@ -98,14 +98,37 @@ final class MDImageCell: NSTextAttachmentCell {
 }
 
 enum MDSymbols {
+    /// PDF and print contexts draw palette-colored symbols as solid squares, so printing uses bitmaps.
+    static var rasterized = false
     private static var cache: [String: NSImage] = [:]
-    static func image(_ name: String, size: CGFloat, color: NSColor, weight: NSFont.Weight = .regular) -> NSImage? {
-        let key = "\(name)|\(size)|\(color.hash)|\(weight.rawValue)"
+    /// `background` colors the second layer, e.g. the box behind a checkmark; one color alone fills both.
+    static func image(_ name: String, size: CGFloat, color: NSColor, background: NSColor? = nil, weight: NSFont.Weight = .regular) -> NSImage? {
+        let key = "\(name)|\(size)|\(color.hash)|\(background?.hash ?? 0)|\(weight.rawValue)|\(rasterized)"
         if let cached = cache[key] { return cached }
         let config = NSImage.SymbolConfiguration(pointSize: size, weight: weight)
-            .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
-        let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(config)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [color] + (background.map { [$0] } ?? [])))
+        var image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(config)
+        if rasterized, let symbol = image { image = bitmap(of: symbol) }
         cache[key] = image
+        return image
+    }
+
+    private static func bitmap(of symbol: NSImage) -> NSImage {
+        let size = symbol.size
+        let scale: CGFloat = 4
+        guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int((size.width * scale).rounded(.up)),
+                                         pixelsHigh: Int((size.height * scale).rounded(.up)), bitsPerSample: 8,
+                                         samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                                         bytesPerRow: 0, bitsPerPixel: 0) else { return symbol }
+        rep.size = size
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        (NSAppearance(named: .aqua) ?? NSAppearance.currentDrawing()).performAsCurrentDrawingAppearance {
+            symbol.draw(in: NSRect(origin: .zero, size: size))
+        }
+        NSGraphicsContext.restoreGraphicsState()
+        let image = NSImage(size: size)
+        image.addRepresentation(rep)
         return image
     }
 }
@@ -115,6 +138,7 @@ final class MDLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
     var accent: NSColor = .controlAccentColor
     var copyLabel = "Copy"
     var copiedLabel = "Copied"
+    var showsCopyButton = true
 
     override init() {
         super.init()
@@ -190,8 +214,9 @@ final class MDLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             let rect = boundingRect(forGlyphRange: glyphs, in: container).offsetBy(dx: origin.x, dy: origin.y)
             let font = storage.attribute(.font, at: range.location, effectiveRange: nil) as? NSFont
             let side = (font?.pointSize ?? 16) * 1.02
-            let symbol = MDSymbols.image(checked ? "checkmark.square.fill" : "square", size: side,
-                                         color: checked ? accent : .tertiaryLabelColor)
+            let symbol = checked
+                ? MDSymbols.image("checkmark.square.fill", size: side, color: .white, background: accent)
+                : MDSymbols.image("square", size: side, color: .tertiaryLabelColor)
             let box = NSRect(x: rect.midX - side / 2, y: rect.midY - side / 2, width: side, height: side)
             symbol?.draw(in: box, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
         }
@@ -259,7 +284,7 @@ final class MDLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             NSAttributedString(string: label, attributes: [.font: labelFont, .foregroundColor: NSColor.tertiaryLabelColor])
                 .draw(at: NSPoint(x: rect.minX + 16, y: rect.minY + 9))
         }
-        guard decoration.code != nil else { return }
+        guard decoration.code != nil, showsCopyButton else { return }
         let copied = decoration.copiedAt.map { Date().timeIntervalSince($0) < 1.4 } ?? false
         let icon = MDSymbols.image(copied ? "checkmark" : "doc.on.doc", size: 11.5,
                                    color: copied ? accent : .tertiaryLabelColor, weight: .medium)
@@ -284,6 +309,13 @@ final class MDTextView: NSTextView {
     var onToggleTask: ((Int) -> Void)?
     var onOpenLink: ((URL) -> Void)?
     var localize: (String) -> String = { $0 }
+    var onFocus: (() -> Void)?
+
+    override func becomeFirstResponder() -> Bool {
+        let accepted = super.becomeFirstResponder()
+        if accepted { onFocus?() }
+        return accepted
+    }
 
     static func make() -> MDTextView {
         let storage = NSTextStorage()

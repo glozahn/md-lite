@@ -36,13 +36,17 @@ MD Lite follows the [GFM specification](https://github.github.com/gfm/) and rend
 - [Mermaid](https://github.com/mermaid-js/mermaid) diagrams in ` ```mermaid ` blocks, drawn offline
 - YAML front matter
 
-## Tabs and working folders
+## Tabs, panes, and working folders
 
-Every document opens in its own native tab (**⌘T**), keeps its own undo history, and closes with **⌘W**. Command-W always closes the innermost thing first: a sheet or popover, then About or Settings, then the tab — the app stays open. Open a whole folder with **⇧⌘O** (or drop it on the window) to browse its Markdown files as a tree in the sidebar; hidden and generated folders such as `node_modules` are skipped, and ⌘-click opens a file in a new tab. Settings open with **⌘,**.
+Each window has its own tab strip. **⌘T** opens a clean tab you can drop a file on, or open, create, or paste a document into; every tab keeps its own undo history and scroll position. Drag a tab or a file from Finder or the sidebar onto a document to see where it will land: the left or right half opens it in a side-by-side pane, the middle opens it as a tab there. **⇧⌘]** / **⇧⌘[** switch tabs, **⌃⌘←** / **⌃⌘→** move a tab between panes, and **⌥⌘W** closes a pane, moving its tabs to the other one.
+
+**⌘W** always closes the innermost thing first: a sheet or popover, then About or Settings, then the tab (and its pane when it was the last one); the app stays open. Open a whole folder with **⇧⌘O** (or drop it on the window) to browse its Markdown files as a tree in the sidebar; hidden and generated folders such as `node_modules` are skipped, and ⌘-click opens a file in a new tab. Settings open with **⌘,**.
+
+Right-click a tab or any file in the sidebar to open it in a new tab or pane, save a copy, duplicate it, export it as HTML or PDF, print it, add it to Favorites, give it Finder tags and colors, reveal it in Finder, or copy its path. Hover a file to see its full path, or click the tab title for a breadcrumb.
 
 ## A calm navigator
 
-The sidebar outlines the document as a collapsible tree, follows you while you scroll, filters long outlines, and jumps with **⌥⌘↑** / **⌥⌘↓**. Hide it with **⌃⌘S** (or **⌘\\**), or press **⇧⌘F** for focus mode. Choose a narrow, normal, wide, or full text column in Reading Preferences.
+The sidebar outlines the document as a collapsible tree, follows you while you scroll, filters long outlines, and jumps with **⌥⌘↑** / **⌥⌘↓**. Hide it with **⌃⌘S** (or **⌘\\**), or press **⇧⌘F** for focus mode, which hides everything but the text until you press it again (or Esc). Choose a narrow, normal, wide, or full text column in Reading Preferences.
 
 ## Screenshots
 
@@ -77,6 +81,9 @@ Press **⌘/** inside the app to see them all.
 | Show or hide the sidebar | ⌃⌘S · ⌘\ |
 | Focus mode | ⇧⌘F |
 | New tab · Close · Settings | ⌘T · ⌘W · ⌘, |
+| Next / previous tab · Close pane | ⇧⌘] · ⇧⌘[ · ⌥⌘W |
+| Move tab to the left / right pane | ⌃⌘← · ⌃⌘→ |
+| New window | ⇧⌘N |
 | New note · Open · Open folder | ⌘N · ⌘O · ⇧⌘O |
 | Save · Save As | ⌘S · ⇧⌘S |
 | Undo · Redo | ⌘Z · ⇧⌘Z |
@@ -89,7 +96,7 @@ Press **⌘/** inside the app to see them all.
 | Previous / next heading | ⌥⌘↑ · ⌥⌘↓ |
 | Increase / reset / decrease text | ⌘+ · ⌘0 · ⌘− |
 | Paste and read clipboard Markdown | ⇧⌘V |
-| Reload from disk | ⌘R |
+| Reload from disk · Print | ⌘R · ⌘P |
 | Keyboard shortcuts | ⌘/ |
 
 ## Build from source

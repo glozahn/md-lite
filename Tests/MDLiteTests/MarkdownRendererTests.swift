@@ -268,6 +268,55 @@ final class EditorTests: XCTestCase {
         XCTAssertEqual(tree.first?.children?.first?.children?.map(\.name), ["setup.markdown"])
     }
 
+    @MainActor
+    func testWorkbenchTabsAndPanes() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("mdlite-bench-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let a = folder.appendingPathComponent("a.md"), b = folder.appendingPathComponent("b.md")
+        try "# A".write(to: a, atomically: true, encoding: .utf8)
+        try "# B".write(to: b, atomically: true, encoding: .utf8)
+
+        let bench = Workbench(target: DocumentTarget())
+        XCTAssertTrue(bench.focusedStore.isWelcome)
+        bench.open(a)
+        XCTAssertEqual(bench.panes[0].tabs.count, 1, "The welcome tab is reused")
+        XCTAssertEqual(bench.focusedStore.fileURL, a)
+        bench.open(b)
+        XCTAssertEqual(bench.panes[0].tabs.count, 2)
+        let bStore = bench.focusedStore
+        XCTAssertEqual(bStore.fileURL, b)
+
+        bench.place(store: bStore, side: .right)
+        XCTAssertEqual(bench.panes.count, 2)
+        XCTAssertEqual(bench.panes[0].tabs.map(\.fileURL), [a])
+        XCTAssertEqual(bench.panes[1].tabs.map(\.fileURL), [b])
+        XCTAssertTrue(bench.focusedStore === bStore)
+
+        bench.close(bStore)
+        XCTAssertEqual(bench.panes.count, 1, "Closing the last tab of a pane removes the pane")
+        XCTAssertEqual(bench.focusedStore.fileURL, a)
+
+        bench.place(url: b, side: .left)
+        XCTAssertEqual(bench.panes.count, 2)
+        XCTAssertEqual(bench.panes[0].tabs.map(\.fileURL), [b])
+
+        bench.newTab()
+        XCTAssertTrue(bench.focusedStore.isBlank, "New tabs start empty")
+        XCTAssertTrue(bench.focusedStore.canReuseForNewDocument)
+        bench.closePane(bench.panes[0])
+        XCTAssertEqual(bench.panes.count, 1)
+        XCTAssertEqual(bench.panes[0].tabs.compactMap(\.fileURL), [a, b], "Closing a pane keeps its documents")
+
+        let orphan = Pane(ReaderStore())
+        let last = orphan.selected
+        orphan.tabs.removeAll()
+        XCTAssertTrue(orphan.selected === last, "An emptied pane still answers while it animates away")
+
+        let copy = DocumentActions.duplicateURL(for: a, prefs: .shared)
+        XCTAssertNotEqual(copy, a)
+        XCTAssertEqual(copy.deletingLastPathComponent(), a.deletingLastPathComponent())
+    }
+
     func testUpdateVersionComparison() {
         XCTAssertTrue(UpdateChecker.isNewer("v0.3.0", than: "0.2.2"))
         XCTAssertTrue(UpdateChecker.isNewer("1.0", than: "0.9.9"))

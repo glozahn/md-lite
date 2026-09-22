@@ -13,6 +13,14 @@ struct ScrollRequest: Equatable {
     var target: ScrollTarget = .none
 }
 
+/// Where the reader is in the document. Changes on every scroll step, so few views observe it.
+@MainActor
+final class ReadingTracker: ObservableObject {
+    @Published var currentHeading: Int?
+    @Published var percent = 0
+    var progress: Double { Double(percent) / 100 }
+}
+
 extension Notification.Name {
     static let mermaidDidRender = Notification.Name("MDLiteMermaidDidRender")
 }
@@ -29,7 +37,9 @@ final class ReaderStore: ObservableObject {
     @Published var isNewNote = false
     @Published var showPasteEditor = false
     @Published var pasteDraft = ""
-    var isWelcome: Bool { fileURL == nil && !isPastedDocument && !isNewNote }
+    var isWelcome: Bool { fileURL == nil && !isPastedDocument && !isNewNote && !isBlank }
+    /// An empty tab waiting for a document.
+    @Published private(set) var isBlank = false
     @Published private(set) var rendered = RenderedDocument(text: NSAttributedString(), outline: [])
     @Published private(set) var renderVersion = 0
     @Published private(set) var contentVersion = 0
@@ -42,9 +52,21 @@ final class ReaderStore: ObservableObject {
         }
     }
     private var lastEditMode: DocumentMode = .edit
-    @Published var focusMode = false
-    @Published private(set) var currentHeading: Int?
-    @Published private(set) var progress: Double = 0
+    var focusMode: Bool {
+        get { workbench?.focusMode ?? false }
+        set {
+            guard focusMode != newValue else { return }
+            objectWillChange.send()
+            workbench?.focusMode = newValue
+        }
+    }
+    /// Scroll position state, published separately so scrolling only redraws the outline and the footer.
+    let tracker = ReadingTracker()
+    var currentHeading: Int? {
+        get { tracker.currentHeading }
+        set { if tracker.currentHeading != newValue { tracker.currentHeading = newValue } }
+    }
+    var progress: Double { tracker.progress }
     @Published var scrollRequest = ScrollRequest()
     @Published var findRequest = 0
     @Published private(set) var isDirty = false
@@ -55,12 +77,15 @@ final class ReaderStore: ObservableObject {
     @Published var showQuickSettings = false
     @Published private(set) var remoteImagesAllowed: Bool
     @Published private(set) var isDark = false
-    @Published private(set) var workspace: URL?
-    @Published private(set) var workspaceTree: [FileNode] = []
-    @Published private(set) var isScanningWorkspace = false
+    let id = UUID()
+    weak var workbench: Workbench?
+    /// Reader and editor views for this tab. Kept alive while the tab exists so undo history,
+    /// selection and scroll position survive switching tabs.
+    lazy var controller = DocumentController(store: self)
 
     weak var document: DocumentEditing?
-    weak var window: NSWindow?
+    var window: NSWindow? { workbench?.window }
+    var workspace: URL? { workbench?.workspace }
     private var watcher: DispatchSourceFileSystemObject?
     private var reloadWork: DispatchWorkItem?
     private var renderWork: DispatchWorkItem?
@@ -96,12 +121,21 @@ final class ReaderStore: ObservableObject {
     var title: String {
         if let fileURL { return fileURL.deletingPathExtension().lastPathComponent }
         if isNewNote { return t("Nueva nota") }
+        if isBlank { return t("Nueva pestaña") }
         return t(isPastedDocument ? "Texto pegado" : "Bienvenido")
     }
     var readingMinutes: Int { max(1, Int(ceil(Double(wordCount) / 220))) }
     var outline: [OutlineItem] { rendered.outline }
     /// A tab that only shows the welcome page (or an untouched note) can take the next document.
-    var canReuseForNewDocument: Bool { !isDirty && (isWelcome || (isNewNote && source.count < 40)) }
+    var canReuseForNewDocument: Bool { !isDirty && (isBlank || isWelcome || (isNewNote && source.count < 40)) }
+
+    func makeBlank() {
+        isBlank = true
+        mode = .read
+        source = ""
+        contentVersion += 1
+        renderNow()
+    }
 
     init(preferences: AppPreferences? = nil) {
         let preferences = preferences ?? .shared
@@ -130,7 +164,7 @@ final class ReaderStore: ObservableObject {
     /// Re-renders when a preference that affects the page changed.
     private func applyPreferences() {
         if prefs.alwaysLoadRemoteImages, !remoteImagesAllowed { remoteImagesAllowed = true; loadRemoteImages() }
-        if isWelcome, !isDirty, welcomeLanguage != prefs.resolvedLanguage {
+        if isWelcome, !isBlank, !isDirty, welcomeLanguage != prefs.resolvedLanguage {
             welcomeLanguage = prefs.resolvedLanguage
             replaceSource(prefs.resolvedLanguage == "es" ? welcomeMarkdown : welcomeMarkdownEnglish)
             return
@@ -144,19 +178,8 @@ final class ReaderStore: ObservableObject {
         renderNow()
     }
 
-    func attach(_ window: NSWindow) {
-        guard self.window !== window else { return }
-        self.window = window
-        window.tabbingIdentifier = "MDLiteDocument"
-        window.tabbingMode = .preferred
-        DocumentRouter.shared.adopt(window)
-        NotificationCenter.default.publisher(for: NSWindow.willCloseNotification, object: window)
-            .sink { [weak self] _ in self?.windowWillClose() }
-            .store(in: &subscriptions)
-    }
-
-    /// Closing a tab never loses work: files save, untitled text goes to a recovery file.
-    private func windowWillClose() {
+    /// Closing a tab or window never loses work: files save, untitled text goes to a recovery file.
+    func preserveUnsavedWork() {
         guard isDirty else { return }
         if fileURL != nil { _ = save(); return }
         let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -170,6 +193,7 @@ final class ReaderStore: ObservableObject {
     // MARK: Documents
 
     private func replaceSource(_ text: String) {
+        isBlank = false
         source = text
         contentVersion += 1
         didReplaceDocument = true
@@ -294,42 +318,16 @@ final class ReaderStore: ObservableObject {
         if showShortcuts { showShortcuts = false; return }
         if showDefaultAppGuide { showDefaultAppGuide = false; return }
         if showQuickSettings { showQuickSettings = false; return }
-        guard confirmDiscard() else { return }
-        window?.performClose(nil)
+        workbench?.close(self)
     }
+
+    /// Something (a sheet or popover) is shown on top of the document.
+    var hasOverlay: Bool { showPasteEditor || showShortcuts || showDefaultAppGuide || showQuickSettings }
 
     // MARK: Workspace
 
-    func openWorkspacePanel() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = t("Abrir carpeta")
-        if panel.runModal() == .OK, let url = panel.url { setWorkspace(url) }
-    }
-
-    func setWorkspace(_ url: URL?) {
-        workspace = url
-        workspaceTree = []
-        if let url {
-            UserDefaults.standard.set(url.path, forKey: "lastWorkspace")
-            refreshWorkspace()
-        }
-    }
-
-    func refreshWorkspace() {
-        guard let root = workspace else { return }
-        isScanningWorkspace = true
-        Task.detached(priority: .userInitiated) {
-            let tree = WorkspaceScanner.scan(root)
-            await MainActor.run { [weak self] in
-                guard let self, self.workspace == root else { return }
-                self.workspaceTree = tree
-                self.isScanningWorkspace = false
-            }
-        }
-    }
+    func openWorkspacePanel() { workbench?.openWorkspacePanel() }
+    func setWorkspace(_ url: URL?) { workbench?.setWorkspace(url) }
 
     // MARK: Rendering
 
@@ -488,6 +486,14 @@ final class ReaderStore: ObservableObject {
         mode = new
     }
 
+    /// Focus mode hides everything but the text; the same command brings it all back.
+    func toggleFocus() {
+        withAnimation(.snappy(duration: 0.28)) {
+            if !focusMode, mode == .split { mode = .read }
+            focusMode.toggle()
+        }
+    }
+
     func toggleEditing() { setMode(mode == .edit || mode == .source ? .read : lastEditMode) }
 
     func format(_ action: FormatAction) {
@@ -520,8 +526,9 @@ final class ReaderStore: ObservableObject {
     }
 
     func setCurrentHeading(_ id: Int?, progress: Double) {
-        if currentHeading != id { currentHeading = id }
-        if abs(self.progress - progress) > 0.004 { self.progress = progress }
+        currentHeading = id
+        let percent = Int((progress * 100).rounded())
+        if tracker.percent != percent { tracker.percent = percent }
     }
 
     /// Handles links clicked in the document. Returns true when MD Lite handled it.
