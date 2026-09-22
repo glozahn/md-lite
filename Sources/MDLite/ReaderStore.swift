@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -12,15 +13,14 @@ struct ScrollRequest: Equatable {
     var target: ScrollTarget = .none
 }
 
-struct DefaultAppStatus: Equatable {
-    var isDefault: Bool?
-    var currentName: String?
-    var currentURL: URL?
+extension Notification.Name {
+    static let mermaidDidRender = Notification.Name("MDLiteMermaidDidRender")
 }
 
+/// State of one document tab. Shared settings live in `AppPreferences`.
 @MainActor
 final class ReaderStore: ObservableObject {
-    static let shared = ReaderStore()
+    let prefs: AppPreferences
 
     /// Markdown source of the open document. Not published: the editor owns typing.
     private(set) var source = welcomeMarkdown
@@ -34,18 +34,14 @@ final class ReaderStore: ObservableObject {
     @Published private(set) var renderVersion = 0
     @Published private(set) var contentVersion = 0
     var didReplaceDocument = true
-    @Published var recent: [URL] = []
     @Published var error: String?
     @Published var mode: DocumentMode = .read {
         didSet {
-            if mode != .read { lastEditMode = mode }
-            if mode == .read, renderPending { renderNow() }
+            if mode == .edit || mode == .source { lastEditMode = mode }
+            if mode != .edit && mode != .source, renderPending { renderNow() }
         }
     }
     private var lastEditMode: DocumentMode = .edit
-    @Published var sidebarVisible = UserDefaults.standard.object(forKey: "sidebarVisible") as? Bool ?? true {
-        didSet { UserDefaults.standard.set(sidebarVisible, forKey: "sidebarVisible") }
-    }
     @Published var focusMode = false
     @Published private(set) var currentHeading: Int?
     @Published private(set) var progress: Double = 0
@@ -56,50 +52,15 @@ final class ReaderStore: ObservableObject {
     @Published private(set) var wordCount = 0
     @Published var showShortcuts = false
     @Published var showDefaultAppGuide = false
-    @Published private(set) var defaultApp = DefaultAppStatus()
-    @Published private(set) var remoteImagesAllowed = UserDefaults.standard.bool(forKey: "alwaysLoadRemoteImages")
-    @Published var alwaysLoadRemoteImages = UserDefaults.standard.bool(forKey: "alwaysLoadRemoteImages") {
-        didSet {
-            UserDefaults.standard.set(alwaysLoadRemoteImages, forKey: "alwaysLoadRemoteImages")
-            if alwaysLoadRemoteImages { allowRemoteImages() }
-        }
-    }
-    @Published var checkForUpdatesAutomatically = UserDefaults.standard.bool(forKey: "checkForUpdates") {
-        didSet { UserDefaults.standard.set(checkForUpdatesAutomatically, forKey: "checkForUpdates") }
-    }
-    @Published var textWidth = UserDefaults.standard.string(forKey: "textWidth") ?? "normal" {
-        didSet { UserDefaults.standard.set(textWidth, forKey: "textWidth") }
-    }
+    @Published var showQuickSettings = false
+    @Published private(set) var remoteImagesAllowed: Bool
     @Published private(set) var isDark = false
-    @Published var fontSize: Double = UserDefaults.standard.object(forKey: "fontSize") as? Double ?? 17 {
-        didSet { UserDefaults.standard.set(fontSize, forKey: "fontSize") }
-    }
-    @Published var appearance = UserDefaults.standard.string(forKey: "appearance") ?? "system" {
-        didSet {
-            UserDefaults.standard.set(appearance, forKey: "appearance")
-            applyWindowAppearance()
-        }
-    }
-    @Published var language = UserDefaults.standard.string(forKey: "language") ?? "system" {
-        didSet {
-            UserDefaults.standard.set(language, forKey: "language")
-            updateLanguage()
-        }
-    }
-    @Published var accent = UserDefaults.standard.string(forKey: "accent") ?? "system" {
-        didSet {
-            UserDefaults.standard.set(accent, forKey: "accent")
-            renderNow()
-        }
-    }
-    @Published private var systemLanguage = ReaderLanguage.resolve("system")
-    var resolvedLanguage: String { language == "system" ? systemLanguage : ReaderLanguage.resolve(language) }
-    var accentNSColor: NSColor { (AccentChoice(rawValue: accent) ?? .system).color }
-    var accentColor: Color { Color(nsColor: accentNSColor) }
-    func t(_ key: String) -> String { ReaderLanguage.text(key, language: resolvedLanguage) }
+    @Published private(set) var workspace: URL?
+    @Published private(set) var workspaceTree: [FileNode] = []
+    @Published private(set) var isScanningWorkspace = false
 
     weak var document: DocumentEditing?
-    private var localeObserver: NSObjectProtocol?
+    weak var window: NSWindow?
     private var watcher: DispatchSourceFileSystemObject?
     private var reloadWork: DispatchWorkItem?
     private var renderWork: DispatchWorkItem?
@@ -108,6 +69,29 @@ final class ReaderStore: ObservableObject {
     private var lastWritten: String?
     private var remoteCache: [URL: NSImage] = [:]
     private var remoteLoading = Set<URL>()
+    private var subscriptions = Set<AnyCancellable>()
+    private var renderKey = ""
+    private var welcomeLanguage = ""
+
+    // MARK: Shared preferences, forwarded for views and tests
+
+    var fontSize: Double { get { prefs.fontSize } set { prefs.fontSize = newValue } }
+    var appearance: String { get { prefs.appearance } set { prefs.appearance = newValue } }
+    var language: String { get { prefs.language } set { prefs.language = newValue; applyPreferences() } }
+    var accent: String { get { prefs.accent } set { prefs.accent = newValue; applyPreferences() } }
+    var textWidth: String { get { prefs.textWidth } set { prefs.textWidth = newValue } }
+    var sidebarVisible: Bool { get { prefs.sidebarVisible } set { prefs.sidebarVisible = newValue } }
+    var alwaysLoadRemoteImages: Bool { get { prefs.alwaysLoadRemoteImages } set { prefs.alwaysLoadRemoteImages = newValue } }
+    var checkForUpdatesAutomatically: Bool { get { prefs.checkForUpdatesAutomatically } set { prefs.checkForUpdatesAutomatically = newValue } }
+    var recent: [URL] { prefs.recent }
+    var defaultApp: DefaultAppStatus { prefs.defaultApp }
+    var resolvedLanguage: String { prefs.resolvedLanguage }
+    var accentNSColor: NSColor { prefs.accentNSColor }
+    var accentColor: Color { prefs.accentColor }
+    var columnWidth: CGFloat { prefs.columnWidth }
+    func t(_ key: String) -> String { prefs.t(key) }
+    func refreshDefaultApp() { prefs.refreshDefaultApp() }
+    func makeDefaultMarkdownApp() { prefs.makeDefaultMarkdownApp { [weak self] message in self?.error = message } }
 
     var title: String {
         if let fileURL { return fileURL.deletingPathExtension().lastPathComponent }
@@ -115,36 +99,43 @@ final class ReaderStore: ObservableObject {
         return t(isPastedDocument ? "Texto pegado" : "Bienvenido")
     }
     var readingMinutes: Int { max(1, Int(ceil(Double(wordCount) / 220))) }
-    var columnWidth: CGFloat {
-        switch textWidth {
-        case "narrow": return 620
-        case "wide": return 980
-        case "full": return 100_000
-        default: return 780
-        }
-    }
     var outline: [OutlineItem] { rendered.outline }
+    /// A tab that only shows the welcome page (or an untouched note) can take the next document.
+    var canReuseForNewDocument: Bool { !isDirty && (isWelcome || (isNewNote && source.count < 40)) }
 
-    init() {
-        recent = (UserDefaults.standard.stringArray(forKey: "recentFiles") ?? []).map { URL(fileURLWithPath: $0) }
-        MermaidRenderer.shared.onUpdate = { [weak self] in self?.renderNow() }
-        updateLanguage()
-        localeObserver = NotificationCenter.default.addObserver(forName: NSLocale.currentLocaleDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in
-                self?.systemLanguage = ReaderLanguage.resolve("system")
-                self?.updateLanguage()
+    init(preferences: AppPreferences? = nil) {
+        let preferences = preferences ?? .shared
+        prefs = preferences
+        remoteImagesAllowed = preferences.alwaysLoadRemoteImages
+        MermaidRenderer.shared.onUpdate = { NotificationCenter.default.post(name: .mermaidDidRender, object: nil) }
+        preferences.objectWillChange
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+                DispatchQueue.main.async { self?.applyPreferences() }
             }
-        }
+            .store(in: &subscriptions)
+        NotificationCenter.default.publisher(for: .mermaidDidRender)
+            .sink { [weak self] _ in
+                guard let self, self.source.contains("mermaid") else { return }
+                self.renderNow()
+            }
+            .store(in: &subscriptions)
+        applyPreferences()
     }
 
-    private func applyWindowAppearance() {
-        let requested: NSAppearance?
-        switch appearance {
-        case "dark": requested = NSAppearance(named: .darkAqua)
-        case "light": requested = NSAppearance(named: .aqua)
-        default: requested = nil
+    private var currentRenderKey: String {
+        "\(prefs.fontSize)|\(prefs.accent)|\(prefs.resolvedLanguage)|\(prefs.textWidth)|\(isDark)"
+    }
+
+    /// Re-renders when a preference that affects the page changed.
+    private func applyPreferences() {
+        if prefs.alwaysLoadRemoteImages, !remoteImagesAllowed { remoteImagesAllowed = true; loadRemoteImages() }
+        if isWelcome, !isDirty, welcomeLanguage != prefs.resolvedLanguage {
+            welcomeLanguage = prefs.resolvedLanguage
+            replaceSource(prefs.resolvedLanguage == "es" ? welcomeMarkdown : welcomeMarkdownEnglish)
+            return
         }
-        DispatchQueue.main.async { NSApp?.windows.forEach { $0.appearance = requested } }
+        if currentRenderKey != renderKey { renderNow() }
     }
 
     func setDarkAppearance(_ dark: Bool) {
@@ -153,12 +144,27 @@ final class ReaderStore: ObservableObject {
         renderNow()
     }
 
-    private func updateLanguage() {
-        if isWelcome, !isDirty {
-            replaceSource(resolvedLanguage == "es" ? welcomeMarkdown : welcomeMarkdownEnglish)
-        } else {
-            renderNow()
-        }
+    func attach(_ window: NSWindow) {
+        guard self.window !== window else { return }
+        self.window = window
+        window.tabbingIdentifier = "MDLiteDocument"
+        window.tabbingMode = .preferred
+        DocumentRouter.shared.adopt(window)
+        NotificationCenter.default.publisher(for: NSWindow.willCloseNotification, object: window)
+            .sink { [weak self] _ in self?.windowWillClose() }
+            .store(in: &subscriptions)
+    }
+
+    /// Closing a tab never loses work: files save, untitled text goes to a recovery file.
+    private func windowWillClose() {
+        guard isDirty else { return }
+        if fileURL != nil { _ = save(); return }
+        let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("MD Lite/Recovered", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+        let url = folder.appendingPathComponent("\(suggestedName) \(stamp).md")
+        if (try? source.write(to: url, atomically: true, encoding: .utf8)) != nil { prefs.addRecent(url) }
     }
 
     // MARK: Documents
@@ -193,12 +199,14 @@ final class ReaderStore: ObservableObject {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText,
                                      UTType(filenameExtension: "markdown") ?? .plainText, .plainText]
-        panel.allowsMultipleSelection = false
+        panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
-        if panel.runModal() == .OK, let url = panel.url { open(url) }
+        guard panel.runModal() == .OK else { return }
+        for url in panel.urls { DocumentRouter.shared.open(url, from: self) }
     }
 
-    func open(_ url: URL) {
+    /// Opens `url` in this tab. `quiet` skips the error alert (restored tabs whose file moved).
+    func open(_ url: URL, quiet: Bool = false) {
         guard url != fileURL || !isDirty else { return }
         guard confirmDiscard() else { return }
         do {
@@ -208,16 +216,14 @@ final class ReaderStore: ObservableObject {
             isNewNote = false
             fileURL = url
             lastWritten = text
-            if !alwaysLoadRemoteImages { remoteImagesAllowed = false }
+            if !prefs.alwaysLoadRemoteImages { remoteImagesAllowed = false }
             replaceSource(text)
             scrollRequest = ScrollRequest(id: scrollRequest.id + 1, target: .top)
-            recent.removeAll { $0 == url }
-            recent.insert(url, at: 0)
-            recent = Array(recent.prefix(12))
-            UserDefaults.standard.set(recent.map(\.path), forKey: "recentFiles")
-            NSDocumentController.shared.noteNewRecentDocumentURL(url)
+            prefs.addRecent(url)
             watch(url)
-        } catch { self.error = "\(t("No se pudo abrir")) \(url.lastPathComponent). \(errorMessage(error))" }
+        } catch {
+            if !quiet { self.error = "\(t("No se pudo abrir")) \(url.lastPathComponent). \(errorMessage(error))" }
+        }
     }
 
     private func readFile(_ url: URL) throws -> String {
@@ -240,7 +246,8 @@ final class ReaderStore: ObservableObject {
         isPastedDocument = false
         isNewNote = false
         mode = .read
-        replaceSource(resolvedLanguage == "es" ? welcomeMarkdown : welcomeMarkdownEnglish)
+        welcomeLanguage = prefs.resolvedLanguage
+        replaceSource(prefs.resolvedLanguage == "es" ? welcomeMarkdown : welcomeMarkdownEnglish)
         scrollRequest = ScrollRequest(id: scrollRequest.id + 1, target: .top)
     }
 
@@ -281,16 +288,61 @@ final class ReaderStore: ObservableObject {
         } else { presentPasteEditor() }
     }
 
+    /// Dismisses the innermost sheet, popover, or tab (Command-W).
+    func closeFrontmost() {
+        if showPasteEditor { showPasteEditor = false; return }
+        if showShortcuts { showShortcuts = false; return }
+        if showDefaultAppGuide { showDefaultAppGuide = false; return }
+        if showQuickSettings { showQuickSettings = false; return }
+        guard confirmDiscard() else { return }
+        window?.performClose(nil)
+    }
+
+    // MARK: Workspace
+
+    func openWorkspacePanel() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = t("Abrir carpeta")
+        if panel.runModal() == .OK, let url = panel.url { setWorkspace(url) }
+    }
+
+    func setWorkspace(_ url: URL?) {
+        workspace = url
+        workspaceTree = []
+        if let url {
+            UserDefaults.standard.set(url.path, forKey: "lastWorkspace")
+            refreshWorkspace()
+        }
+    }
+
+    func refreshWorkspace() {
+        guard let root = workspace else { return }
+        isScanningWorkspace = true
+        Task.detached(priority: .userInitiated) {
+            let tree = WorkspaceScanner.scan(root)
+            await MainActor.run { [weak self] in
+                guard let self, self.workspace == root else { return }
+                self.workspaceTree = tree
+                self.isScanningWorkspace = false
+            }
+        }
+    }
+
     // MARK: Rendering
 
     func renderNow() {
         renderWork?.cancel()
         renderPending = false
+        renderKey = currentRenderKey
         let renderer = MarkdownRenderer(size: fontSize, baseURL: fileURL?.deletingLastPathComponent(), accent: accentNSColor, language: resolvedLanguage)
         renderer.dark = isDark
         renderer.maxImageWidth = min(columnWidth, 1200)
         renderer.remoteImage = { [weak self] url in self?.cachedRemoteImage(url) }
-        renderer.mermaid = { [weak self] code in MermaidRenderer.shared.result(for: code, dark: self?.isDark ?? false) }
+        let dark = isDark
+        renderer.mermaid = { code in MermaidRenderer.shared.result(for: code, dark: dark) }
         rendered = renderer.render(source)
         renderVersion += 1
         wordCount = source.split(whereSeparator: { $0.isWhitespace }).count
@@ -307,7 +359,8 @@ final class ReaderStore: ObservableObject {
         renderWork?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.renderNow() }
         renderWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + (mode == .read ? 0.05 : 0.35), execute: work)
+        let delay: Double = mode == .read ? 0.05 : (mode == .split ? 0.18 : 0.35)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
         scheduleAutosave()
     }
 
@@ -350,9 +403,7 @@ final class ReaderStore: ObservableObject {
         isPastedDocument = false
         isNewNote = false
         fileURL = url
-        recent.removeAll { $0 == url }
-        recent.insert(url, at: 0)
-        UserDefaults.standard.set(recent.map(\.path), forKey: "recentFiles")
+        prefs.addRecent(url)
         watch(url)
         renderNow()
         return true
@@ -437,7 +488,7 @@ final class ReaderStore: ObservableObject {
         mode = new
     }
 
-    func toggleEditing() { setMode(mode == .read ? lastEditMode : .read) }
+    func toggleEditing() { setMode(mode == .edit || mode == .source ? .read : lastEditMode) }
 
     func format(_ action: FormatAction) {
         if mode == .read { mode = .edit }
@@ -450,12 +501,10 @@ final class ReaderStore: ObservableObject {
 
     func zoom(_ delta: Double) {
         fontSize = min(28, max(12, fontSize + delta))
-        renderNow()
     }
 
     func resetZoom() {
         fontSize = 17
-        renderNow()
     }
 
     func navigate(_ item: OutlineItem) {
@@ -484,7 +533,7 @@ final class ReaderStore: ObservableObject {
             return true
         }
         if url.isFileURL, ["md", "markdown", "mdown", "mkd"].contains(url.pathExtension.lowercased()) {
-            open(url)
+            DocumentRouter.shared.open(url, from: self)
             return true
         }
         NSWorkspace.shared.open(url)
@@ -522,29 +571,6 @@ final class ReaderStore: ObservableObject {
     }
 
     var blockedRemoteImages: Int { remoteImagesAllowed ? 0 : rendered.remoteImages.count }
-
-    // MARK: Default Markdown app
-
-    func refreshDefaultApp() {
-        guard let type = UTType(filenameExtension: "md") else { return }
-        let url = NSWorkspace.shared.urlForApplication(toOpen: type)
-        let isDefault = url.map { Bundle(url: $0)?.bundleIdentifier == Bundle.main.bundleIdentifier && Bundle.main.bundleIdentifier != nil }
-        let name = url.map { FileManager.default.displayName(atPath: $0.path).replacingOccurrences(of: ".app", with: "") }
-        defaultApp = DefaultAppStatus(isDefault: isDefault ?? false, currentName: name, currentURL: url)
-    }
-
-    func makeDefaultMarkdownApp() {
-        let applicationURL = Bundle.main.bundleURL
-        let types = [UTType(filenameExtension: "md"), UTType(filenameExtension: "markdown")].compactMap { $0 }
-        for type in types {
-            NSWorkspace.shared.setDefaultApplication(at: applicationURL, toOpen: type) { [weak self] error in
-                Task { @MainActor in
-                    if let error { self?.error = "\(self?.t("No se pudo asociar Markdown") ?? "Unable to associate Markdown"): \(error.localizedDescription)" }
-                    self?.refreshDefaultApp()
-                }
-            }
-        }
-    }
 }
 
 private enum ReaderError: LocalizedError {
@@ -567,6 +593,7 @@ Menos interfaz. Más claridad. **MD Lite** lee y edita Markdown en una experienc
 | Lectura | ⌘1 | Leer el documento terminado |
 | Editor | ⌘2 | Escribir con el formato a la vista |
 | Código | ⌘3 | Ver y editar el Markdown puro |
+| Dividida | ⌘4 | Código y lectura lado a lado |
 
 En el editor, las marcas como `**` o `#` aparecen solo en la línea donde escribes. **⌘Z** deshace y **⇧⌘Z** rehace.
 
@@ -574,6 +601,7 @@ En el editor, las marcas como `**` o `#` aparecen solo en la línea donde escrib
 
 - [x] Abre un archivo con **⌘O** o arrástralo a la ventana.
 - [x] Guarda con **⌘S**; los archivos abiertos se guardan solos.
+- [x] Abre una carpeta con **⇧⌘O** y cada documento en su pestaña (**⌘T**).
 - [ ] Marca esta tarea con un clic.
 
 ### Código que se lee bien
@@ -617,6 +645,7 @@ Less interface. More clarity. **MD Lite** reads and edits Markdown in a calm, pr
 | Reading | ⌘1 | Read the finished document |
 | Editor | ⌘2 | Write with formatting in view |
 | Source | ⌘3 | See and edit plain Markdown |
+| Split | ⌘4 | Source and reading side by side |
 
 In the editor, markers such as `**` or `#` appear only on the line you are typing. **⌘Z** undoes and **⇧⌘Z** redoes.
 
@@ -624,6 +653,7 @@ In the editor, markers such as `**` or `#` appear only on the line you are typin
 
 - [x] Open a file with **⌘O** or drop it into the window.
 - [x] Save with **⌘S**; open files save themselves.
+- [x] Open a folder with **⇧⌘O** and each document in its own tab (**⌘T**).
 - [ ] Check this task with a click.
 
 ### Code that reads well

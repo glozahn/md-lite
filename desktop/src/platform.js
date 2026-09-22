@@ -60,6 +60,25 @@ export const platform = {
     return core.invoke('initial_file');
   },
 
+  async listMarkdown(path) {
+    if (!isTauri) return [];
+    const { core } = await tauri();
+    return core.invoke('list_markdown', { path });
+  },
+
+  async isDirectory(path) {
+    if (!isTauri) return false;
+    const { core } = await tauri();
+    return core.invoke('is_dir', { path });
+  },
+
+  async folderDialog() {
+    if (!isTauri) return null;
+    const { dialog } = await tauri();
+    const result = await dialog.open({ multiple: false, directory: true });
+    return typeof result === 'string' ? result : null;
+  },
+
   async openDialog() {
     if (!isTauri) return null;
     const { dialog } = await tauri();
@@ -136,7 +155,7 @@ export const platform = {
   },
 
   async version() {
-    if (!isTauri) return '0.3.0';
+    if (!isTauri) return '0.3.1';
     const { appApi } = await tauri();
     return appApi.getVersion();
   },
@@ -150,13 +169,13 @@ export const platform = {
         if (!file) return;
         const path = '/memory/' + file.name;
         memory.set(path, await file.text());
-        handler(path);
+        handler([path]);
       });
       return;
     }
     const { windowApi } = await tauri();
     await windowApi.getCurrentWindow().onDragDropEvent((event) => {
-      if (event.payload.type === 'drop' && event.payload.paths?.length) handler(event.payload.paths[0]);
+      if (event.payload.type === 'drop' && event.payload.paths?.length) handler(event.payload.paths);
     });
   },
 

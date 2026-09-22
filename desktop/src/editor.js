@@ -361,11 +361,20 @@ export function createEditor(parent, { onChange }) {
     get text() { return view.state.doc.toString(); },
     /** Replaces the document and forgets undo history (a different file). */
     load(text) { view.setState(EditorState.create({ doc: text, extensions: extensions(mode) })); },
+    /** A fresh state for another tab; swapping states keeps each tab's undo history. */
+    createState(text, stateMode = 'edit') { return EditorState.create({ doc: text, extensions: extensions(stateMode) }); },
+    get state() { return view.state; },
+    restore(state, stateMode) {
+      mode = stateMode === 'split' ? 'source' : stateMode;
+      view.setState(state);
+      view.dispatch({ effects: modeSlot.reconfigure(mode === 'edit' ? [livePreview, liveTheme] : [sourceTheme]) });
+      view.contentDOM.spellcheck = mode === 'edit';
+    },
     /** Replaces the text keeping history (reload after an external change). */
     replace(text) { view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } }); },
     setMode(next) {
-      mode = next;
-      view.dispatch({ effects: modeSlot.reconfigure(next === 'edit' ? [livePreview, liveTheme] : [sourceTheme]) });
+      mode = next === 'split' ? 'source' : next;
+      view.dispatch({ effects: modeSlot.reconfigure(mode === 'edit' ? [livePreview, liveTheme] : [sourceTheme]) });
       view.contentDOM.spellcheck = next === 'edit';
     },
     focus() { view.focus(); },

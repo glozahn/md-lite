@@ -253,6 +253,21 @@ final class EditorTests: XCTestCase {
         XCTAssertEqual(view.string, "word")
     }
 
+    func testWorkspaceScannerFindsMarkdownAndSkipsNoise() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("mdlite-ws-\(UUID().uuidString)")
+        let fm = FileManager.default
+        try fm.createDirectory(at: root.appendingPathComponent("docs/guides"), withIntermediateDirectories: true)
+        try fm.createDirectory(at: root.appendingPathComponent("node_modules/pkg"), withIntermediateDirectories: true)
+        try fm.createDirectory(at: root.appendingPathComponent("images"), withIntermediateDirectories: true)
+        for file in ["README.md", "docs/guides/setup.markdown", "docs/b.md", "node_modules/pkg/readme.md", "images/logo.png", ".hidden.md"] {
+            try Data("# x".utf8).write(to: root.appendingPathComponent(file))
+        }
+        let tree = WorkspaceScanner.scan(root)
+        XCTAssertEqual(tree.map(\.name), ["docs", "README.md"])
+        XCTAssertEqual(tree.first?.children?.map(\.name), ["guides", "b.md"])
+        XCTAssertEqual(tree.first?.children?.first?.children?.map(\.name), ["setup.markdown"])
+    }
+
     func testUpdateVersionComparison() {
         XCTAssertTrue(UpdateChecker.isNewer("v0.3.0", than: "0.2.2"))
         XCTAssertTrue(UpdateChecker.isNewer("1.0", than: "0.9.9"))

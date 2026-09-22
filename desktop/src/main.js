@@ -41,6 +41,9 @@ const icons = {
   expand: '<path d="m5 6 3-3 3 3M5 10l3 3 3-3"/>',
   gear: '<circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1"/>',
   clock: '<circle cx="8" cy="8" r="5.8"/><path d="M8 4.8V8l2.2 1.4"/>',
+  folder: '<path d="M2 4.3A1.3 1.3 0 0 1 3.3 3h3l1.4 1.6h5A1.3 1.3 0 0 1 14 5.9v5.8A1.3 1.3 0 0 1 12.7 13H3.3A1.3 1.3 0 0 1 2 11.7Z"/>',
+  refresh: '<path d="M13 8a5 5 0 1 1-1.5-3.6"/><path d="M13 2.8v2.6h-2.6"/>',
+  split: '<rect x="2" y="3" width="12" height="10" rx="1.6"/><path d="M8 3v10"/>',
 };
 const icon = (name, size = 16) => `<svg viewBox="0 0 16 16" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] ?? ''}</svg>`;
 
@@ -57,40 +60,81 @@ function saveSettings() { try { localStorage.setItem('mdlite.settings', JSON.str
 const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
 const isDark = () => settings.theme === 'dark' || (settings.theme === 'system' && darkQuery.matches);
 
-// ---------------------------------------------------------------- document state
-
-const doc = { path: null, kind: 'welcome', text: '', dirty: false, lastWritten: null, mtime: 0, remote: settings.remote, outline: [], blocked: 0, savedAt: null };
-let mode = 'read';
-let lastEditMode = 'edit';
-let currentHeading = null;
-let focusMode = false;
-let loading = false;
-let renderTimer, saveTimer;
-const collapsed = new Set();
-const imageCache = new Map();
+// ---------------------------------------------------------------- tabs and document state
 
 const reader = $('#reader');
 const article = $('#doc');
 const editor = createEditor($('#editor'), { onChange: editorChanged });
 
-function isWelcome() { return doc.kind === 'welcome'; }
+let tabSeq = 0;
+const tabs = [];
+let active = null;
+let doc = null;
+let mode = 'read';
+let lastEditMode = 'edit';
+let collapsed = new Set();
+let currentHeading = null;
+let focusMode = false;
+let loading = false;
+let renderTimer, saveTimer;
+const imageCache = new Map();
 
-function title() {
-  if (doc.path) return doc.path.split(/[\\/]/).pop().replace(/\.(md|markdown|mdown|mkd|txt)$/i, '');
-  if (doc.kind === 'note') return t('Nueva nota');
-  if (doc.kind === 'pasted') return t('Texto pegado');
-  return t('Bienvenido');
+function makeDoc(kind = 'welcome', text = '', path = null) {
+  return { path, kind, text, dirty: false, lastWritten: path ? text : null, mtime: 0, remote: settings.remote, outline: [], blocked: 0, savedAt: null };
 }
 
+function makeTab(kind, text, path = null) {
+  const tab = { id: ++tabSeq, doc: makeDoc(kind, text, path), state: editor.createState(text), mode: 'read', lastEditMode: 'edit', readerScroll: 0, collapsed: new Set() };
+  tabs.push(tab);
+  return tab;
+}
+
+/** A tab that only shows the welcome page or an untouched note can take the next document. */
+function reusable(tab) {
+  return tab && !tab.doc.dirty && (tab.doc.kind === 'welcome' || (tab.doc.kind === 'note' && tab.doc.text.length < 40));
+}
+
+function stashActive() {
+  if (!active) return;
+  if (doc.dirty && doc.path) { clearTimeout(saveTimer); writeDoc(doc, doc.path); }
+  active.state = editor.state;
+  active.mode = mode;
+  active.lastEditMode = lastEditMode;
+  active.readerScroll = reader.scrollTop;
+  active.collapsed = collapsed;
+}
+
+function activate(tab) {
+  if (tab === active) return;
+  stashActive();
+  active = tab;
+  doc = tab.doc;
+  mode = tab.mode;
+  lastEditMode = tab.lastEditMode;
+  collapsed = tab.collapsed;
+  currentHeading = null;
+  loading = true;
+  editor.restore(tab.state, mode === 'read' ? lastEditMode : mode);
+  loading = false;
+  applyModeLayout();
+  render({ keepScroll: false });
+  reader.scrollTop = tab.readerScroll;
+  updateChrome();
+}
+
+function titleOf(item) {
+  if (item.path) return item.path.split(/[\\/]/).pop().replace(/\.(md|markdown|mdown|mkd|txt)$/i, '');
+  if (item.kind === 'note') return t('Nueva nota');
+  if (item.kind === 'pasted') return t('Texto pegado');
+  return t('Bienvenido');
+}
+function title() { return titleOf(doc); }
+function isWelcome() { return doc.kind === 'welcome'; }
+
+/** Replaces the document shown in the current tab. */
 function load(kind, text, path = null) {
-  doc.kind = kind;
-  doc.path = path;
-  doc.text = text;
-  doc.dirty = false;
-  doc.lastWritten = path ? text : null;
-  doc.remote = settings.remote;
-  doc.savedAt = null;
-  collapsed.clear();
+  doc = active.doc = makeDoc(kind, text, path);
+  collapsed = active.collapsed = new Set();
   loading = true;
   editor.load(text);
   loading = false;
@@ -98,6 +142,49 @@ function load(kind, text, path = null) {
   reader.scrollTop = 0;
   updateChrome();
 }
+
+/** Shows a document in the current tab when it is free, otherwise in a new tab. */
+function place(kind, text, path = null, newTab = false) {
+  if (!newTab && reusable(active)) { load(kind, text, path); return; }
+  activate(makeTab(kind, text, path));
+}
+
+async function closeTab(tab = active) {
+  if (tab !== active) activate(tab);
+  if (!(await confirmDiscard())) return;
+  clearTimeout(saveTimer);
+  const index = tabs.indexOf(tab);
+  tabs.splice(index, 1);
+  active = null;
+  if (!tabs.length) makeTab('welcome', welcome[currentLanguage()]);
+  activate(tabs[Math.min(index, tabs.length - 1)]);
+}
+
+function cycleTab(delta) {
+  if (tabs.length < 2) return;
+  activate(tabs[(tabs.indexOf(active) + delta + tabs.length) % tabs.length]);
+}
+
+function renderTabs() {
+  const bar = $('#tabs');
+  bar.hidden = tabs.length < 2;
+  if (bar.hidden) return;
+  bar.replaceChildren(...tabs.map((tab) => {
+    const item = document.createElement('div');
+    item.className = 'tab' + (tab === active ? ' active' : '');
+    item.title = tab.doc.path ?? titleOf(tab.doc);
+    item.innerHTML = `<span class="tab-title"></span>${tab.doc.dirty ? '<span class="tab-dot"></span>' : ''}<button class="tab-close" title="${t('Cerrar pestaña')} · Ctrl+W">${icon('close', 11)}</button>`;
+    item.querySelector('.tab-title').textContent = titleOf(tab.doc);
+    item.addEventListener('mousedown', (event) => { if (event.button === 1) { event.preventDefault(); closeTab(tab); } });
+    item.addEventListener('click', () => activate(tab));
+    item.querySelector('.tab-close').addEventListener('click', (event) => { event.stopPropagation(); closeTab(tab); });
+    return item;
+  }), Object.assign(document.createElement('button'), {
+    className: 'tab-new', title: `${t('Nueva pestaña')} · Ctrl+T`, innerHTML: icon('plus', 13), onclick: () => newTab(),
+  }));
+}
+
+function newTab() { activate(makeTab('welcome', welcome[currentLanguage()])); }
 
 // ---------------------------------------------------------------- rendering
 
@@ -118,7 +205,7 @@ function render({ keepScroll = true } = {}) {
 
 function scheduleRender() {
   clearTimeout(renderTimer);
-  renderTimer = setTimeout(() => render(), mode === 'read' ? 30 : 280);
+  renderTimer = setTimeout(() => render(), mode === 'read' ? 30 : mode === 'split' ? 140 : 280);
 }
 
 async function resolveImages() {
@@ -149,6 +236,7 @@ function updateStats() {
 }
 
 function updateBanner() {
+  if (!doc) return;
   const show = mode === 'read' && doc.blocked > 0 && !doc.remote;
   $('#banner').hidden = !show;
   if (show) $('#banner-text').textContent = t('%d imágenes remotas bloqueadas para proteger tu privacidad.', doc.blocked);
@@ -162,17 +250,17 @@ function editorChanged(text) {
   if (!doc.dirty) { doc.dirty = true; updateChrome(); }
   scheduleRender();
   clearTimeout(saveTimer);
-  if (doc.path) saveTimer = setTimeout(() => save(), 900);
+  if (doc.path) { const target = doc; saveTimer = setTimeout(() => writeDoc(target, target.path), 900); }
   else updateSaveState();
 }
 
-async function write(path) {
+async function writeDoc(target, path) {
   try {
-    await platform.writeText(path, doc.text);
-    doc.lastWritten = doc.text;
-    doc.dirty = false;
-    doc.savedAt = Date.now();
-    doc.mtime = await platform.modified(path).catch(() => 0);
+    await platform.writeText(path, target.text);
+    target.lastWritten = target.text;
+    target.dirty = false;
+    target.savedAt = Date.now();
+    target.mtime = await platform.modified(path).catch(() => 0);
     updateChrome();
     return true;
   } catch (error) {
@@ -184,7 +272,7 @@ async function write(path) {
 async function save() {
   clearTimeout(saveTimer);
   if (!doc.path) return saveAs();
-  return write(doc.path);
+  return writeDoc(doc, doc.path);
 }
 
 async function saveAs() {
@@ -192,7 +280,7 @@ async function saveAs() {
   const suggested = (doc.path ? title() : heading || t('Sin título')) + '.md';
   const path = await platform.saveDialog(suggested);
   if (!path) return false;
-  if (!(await write(path))) return false;
+  if (!(await writeDoc(doc, path))) return false;
   doc.path = path;
   doc.kind = 'file';
   addRecent(path);
@@ -211,15 +299,17 @@ async function confirmDiscard() {
   return false;
 }
 
-async function openPath(path) {
+async function openPath(path, { newTab: forceNew = false } = {}) {
   if (!path) return;
-  if (path === doc.path) return;
-  if (!(await confirmDiscard())) return;
+  if (await platform.isDirectory(path)) { setWorkspace(path); return; }
+  const existing = tabs.find((tab) => tab.doc.path === path);
+  if (existing) { activate(existing); return; }
   try {
     const text = await platform.readText(path);
-    load('file', text, path);
+    place('file', text, path, forceNew);
     doc.mtime = await platform.modified(path).catch(() => 0);
     addRecent(path);
+    renderWorkspace();
   } catch (error) {
     const reason = String(error).includes('too-large') ? t('Elige un archivo de texto UTF-8 de hasta 5 MB.') : String(error);
     toast(`${t('No se pudo abrir')} ${path.split(/[\\/]/).pop()}. ${reason}`);
@@ -228,16 +318,15 @@ async function openPath(path) {
 
 async function openDialog() { openPath(await platform.openDialog()); }
 
-async function newNote() {
-  if (!(await confirmDiscard())) return;
-  load('note', `# ${t('Nueva nota')}\n\n`);
+function newNote() {
+  place('note', `# ${t('Nueva nota')}\n\n`);
   setMode('edit');
   editor.view.dispatch({ selection: { anchor: editor.view.state.doc.length } });
 }
 
 async function showWelcome() {
-  if (!(await confirmDiscard())) return;
-  load('welcome', welcome[currentLanguage()]);
+  if (isWelcome()) return;
+  place('welcome', welcome[currentLanguage()]);
   setMode('read');
 }
 
@@ -294,29 +383,37 @@ function scrollReaderToLine(line) {
   else reader.scrollTop = 0;
 }
 
+function applyModeLayout() {
+  $('#panes').dataset.mode = mode;
+  $('#reader').hidden = mode === 'edit' || mode === 'source';
+  $('#editor').hidden = mode === 'read';
+  $('#divider').hidden = mode !== 'split';
+  $('#formatbar').hidden = mode === 'read' || focusMode;
+}
+
 function setMode(next) {
   if (next === mode) return;
   const anchor = mode === 'read' ? readerTopLine() : editor.topLine();
   const previous = mode;
   mode = next;
-  if (next !== 'read') lastEditMode = next;
-  $('#reader').hidden = next !== 'read';
-  $('#editor').hidden = next === 'read';
-  $('#formatbar').hidden = next === 'read' || focusMode;
-  if (next === 'read') {
-    render();
-    requestAnimationFrame(() => { scrollReaderToLine(anchor); reader.focus({ preventScroll: true }); });
-  } else {
-    editor.setMode(next);
-    requestAnimationFrame(() => {
+  if (next === 'edit' || next === 'source') lastEditMode = next;
+  applyModeLayout();
+  if (next !== 'read') editor.setMode(next);
+  if (next === 'read' || next === 'split') render();
+  requestAnimationFrame(() => {
+    if (next === 'read') {
+      scrollReaderToLine(anchor);
+      reader.focus({ preventScroll: true });
+    } else {
       if (previous === 'read') editor.scrollToLine(anchor);
+      if (next === 'split') scrollReaderToLine(editor.topLine());
       editor.focus();
-    });
-  }
+    }
+  });
   updateChrome();
 }
 
-function toggleEditing() { setMode(mode === 'read' ? lastEditMode : 'read'); }
+function toggleEditing() { setMode(mode === 'edit' || mode === 'source' ? 'read' : lastEditMode); }
 
 function format(action) {
   if (action === 'undo') return editor.undo();
@@ -327,10 +424,11 @@ function format(action) {
 
 function navigate(item) {
   currentHeading = item.index;
-  if (mode === 'read') {
+  if (mode === 'read' || mode === 'split') {
     const target = article.querySelector(`#${CSS.escape(item.id)}`) ?? article.querySelectorAll('h1,h2,h3,h4,h5,h6')[item.index];
     if (target) reader.scrollTop += target.getBoundingClientRect().top - reader.getBoundingClientRect().top - 18;
-  } else {
+  }
+  if (mode !== 'read') {
     editor.scrollToLine(item.line);
     editor.focus();
   }
@@ -346,7 +444,7 @@ function navigateRelative(delta) {
 function trackPosition() {
   let active = null;
   let progress = 0;
-  if (mode === 'read') {
+  if (mode === 'read' || mode === 'split') {
     const top = reader.getBoundingClientRect().top + 90;
     const headings = article.querySelectorAll('h1,h2,h3,h4,h5,h6');
     headings.forEach((heading, index) => { if (heading.getBoundingClientRect().top <= top) active = index; });
@@ -371,12 +469,33 @@ const onScroll = () => {
   requestAnimationFrame(() => { tracking = false; trackPosition(); });
 };
 reader.addEventListener('scroll', onScroll, { passive: true });
-editor.view.scrollDOM.addEventListener('scroll', onScroll, { passive: true });
+let syncing = false;
+editor.view.scrollDOM.addEventListener('scroll', () => {
+  onScroll();
+  if (mode !== 'split' || syncing) return;
+  syncing = true;
+  requestAnimationFrame(() => { syncing = false; scrollReaderToLine(editor.topLine()); });
+}, { passive: true });
+
+// Split view divider.
+$('#divider').addEventListener('pointerdown', (event) => {
+  const panes = $('#panes');
+  const box = panes.getBoundingClientRect();
+  event.target.setPointerCapture(event.pointerId);
+  const move = (e) => {
+    const ratio = Math.min(0.75, Math.max(0.25, (e.clientX - box.left) / box.width));
+    panes.style.setProperty('--split', `${(ratio * 100).toFixed(1)}%`);
+    settings.split = ratio;
+  };
+  const up = () => { event.target.removeEventListener('pointermove', move); saveSettings(); };
+  event.target.addEventListener('pointermove', move);
+  event.target.addEventListener('pointerup', up, { once: true });
+});
 
 // ---------------------------------------------------------------- sidebar
 
 function renderOutline() {
-  const outline = doc.outline;
+  const outline = doc?.outline ?? [];
   const list = $('#outline');
   const filter = $('#outline-filter');
   $('#outline-count').hidden = !outline.length;
@@ -480,27 +599,24 @@ function updateSaveState() {
 }
 
 function updateChrome() {
+  if (!doc) return;
   const name = title();
   $('#doc-title').textContent = name;
   $('#dirty-dot').hidden = !doc.dirty;
   $('.title .ext').hidden = doc.dirty;
-  $('#welcome-row').classList.toggle('active', isWelcome());
-  const current = $('#current-row');
-  current.hidden = isWelcome();
-  current.querySelector('.name').textContent = name;
-  current.querySelector('.dot').hidden = !doc.dirty;
   for (const button of document.querySelectorAll('#modes button')) {
     const active = button.dataset.mode === mode;
     button.classList.toggle('active', active);
     button.setAttribute('aria-pressed', String(active));
   }
-  $('#mode-label').textContent = { read: t('LECTURA'), edit: t('EDITOR'), source: t('CÓDIGO FUENTE') }[mode];
+  $('#mode-label').textContent = { read: t('LECTURA'), edit: t('EDITOR'), source: t('CÓDIGO FUENTE'), split: t('DIVIDIDA') }[mode];
   $('#app').classList.toggle('no-sidebar', !settings.sidebar || focusMode);
   $('#app').classList.toggle('focus', focusMode);
   $('#formatbar').hidden = mode === 'read' || focusMode;
   $('#zoom-reset').textContent = settings.fontSize;
   updateSaveState();
   updateBanner();
+  renderTabs();
   platform.setTitle(`${doc.dirty ? '• ' : ''}${name} — MD Lite`);
 }
 
@@ -510,12 +626,15 @@ function applySettings() {
   root.style.setProperty('--accent', accents[settings.accent] ?? accents.blue);
   root.style.setProperty('--font-size', `${settings.fontSize}px`);
   root.style.setProperty('--column', widths[settings.width] ?? widths.normal);
+  $('#panes').style.setProperty('--split', `${((settings.split ?? 0.5) * 100).toFixed(1)}%`);
   const language = resolveLanguage(settings.language);
   const languageChanged = language !== currentLanguage() || !document.body.dataset.translated;
   setLanguage(language);
   if (languageChanged) {
     translate();
-    if (isWelcome() && !doc.dirty) load('welcome', welcome[language]);
+    for (const tab of tabs) if (tab.doc.kind === 'welcome' && !tab.doc.dirty) tab.doc.text = welcome[language];
+    if (doc && isWelcome() && !doc.dirty) load('welcome', welcome[language]);
+    renderWorkspace();
   }
   for (const group of document.querySelectorAll('[data-setting]')) {
     for (const button of group.querySelectorAll('button')) button.classList.toggle('active', button.value === settings[group.dataset.setting]);
@@ -541,6 +660,10 @@ const tips = {
   '[data-mode="read"]': ['Lectura', 'Ctrl+1'],
   '[data-mode="edit"]': ['Editor', 'Ctrl+2'],
   '[data-mode="source"]': ['Código', 'Ctrl+3'],
+  '[data-mode="split"]': ['Dividida', 'Ctrl+4'],
+  '#open-folder': ['Abrir carpeta de trabajo', 'Ctrl+Shift+O'],
+  '#workspace-refresh': ['Actualizar carpeta', ''],
+  '#workspace-close': ['Cerrar carpeta', ''],
   '#new-button': ['Nueva nota', 'Ctrl+N'],
   '#paste-button': ['Pegar Markdown', 'Ctrl+Shift+V'],
   '[data-format="heading1"]': ['Título 1', 'Ctrl+Alt+1'],
@@ -589,9 +712,10 @@ function toast(message) {
 // ---------------------------------------------------------------- dialogs
 
 const shortcutSections = [
-  ['Vista', [['Lectura', 'Ctrl 1'], ['Editor', 'Ctrl 2'], ['Código', 'Ctrl 3'], ['Alternar lectura y edición', 'Ctrl E'],
+  ['Vista', [['Lectura', 'Ctrl 1'], ['Editor', 'Ctrl 2'], ['Código', 'Ctrl 3'], ['Dividida', 'Ctrl 4'], ['Alternar lectura y edición', 'Ctrl E'],
     ['Mostrar u ocultar la barra lateral', 'Ctrl \\'], ['Modo enfoque', 'Ctrl ⇧ F'], ['Aumentar / reducir texto', 'Ctrl + −'], ['Tamaño original', 'Ctrl 0']]],
-  ['Archivo', [['Nueva nota', 'Ctrl N'], ['Abrir', 'Ctrl O'], ['Guardar', 'Ctrl S'], ['Guardar como…', 'Ctrl ⇧ S'],
+  ['Archivo', [['Nueva pestaña', 'Ctrl T'], ['Cerrar pestaña', 'Ctrl W'], ['Cambiar de pestaña', 'Ctrl ⇥'], ['Nueva nota', 'Ctrl N'], ['Abrir', 'Ctrl O'],
+    ['Abrir carpeta de trabajo', 'Ctrl ⇧ O'], ['Guardar', 'Ctrl S'], ['Guardar como…', 'Ctrl ⇧ S'],
     ['Pegar Markdown', 'Ctrl ⇧ V'], ['Volver a cargar', 'Ctrl R'], ['Preferencias', 'Ctrl ,']]],
   ['Edición', [['Deshacer', 'Ctrl Z'], ['Rehacer', 'Ctrl Y'], ['Buscar', 'Ctrl F'], ['Buscar siguiente / anterior', 'F3 ⇧F3'],
     ['Continuar lista o cita', '↵'], ['Sangrar / quitar sangría', '⇥ ⇧⇥']]],
@@ -714,7 +838,10 @@ article.addEventListener('click', async (event) => {
 $('#open-button').addEventListener('click', openDialog);
 $('#new-button').addEventListener('click', newNote);
 $('#paste-button').addEventListener('click', () => openPaste());
-$('#welcome-row').addEventListener('click', showWelcome);
+$('#open-folder').addEventListener('click', openFolderDialog);
+$('#workspace-refresh').addEventListener('click', refreshWorkspace);
+$('#workspace-close').addEventListener('click', () => setWorkspace(null));
+window.addEventListener('focus', () => { if (workspace.path) refreshWorkspace(); });
 $('#sidebar-button').addEventListener('click', toggleSidebar);
 $('#find-button').addEventListener('click', showFind);
 $('#zoom-in').addEventListener('click', () => zoom(1));
@@ -757,8 +884,7 @@ $('#paste').addEventListener('close', async () => {
   if ($('#paste').returnValue !== 'read') return;
   const text = $('#paste-text').value;
   if (!text.trim()) return;
-  if (!(await confirmDiscard())) return;
-  load('pasted', text);
+  if (doc.kind === 'pasted' && !doc.dirty) load('pasted', text); else place('pasted', text);
   setMode('read');
 });
 
@@ -778,6 +904,9 @@ document.addEventListener('keydown', (event) => {
   const mod = event.ctrlKey || event.metaKey;
   const key = event.key.toLowerCase();
   const run = (action) => { event.preventDefault(); action(); };
+  if (mod && event.key === 'Tab') return run(() => cycleTab(event.shiftKey ? -1 : 1));
+  if (mod && event.key === 'PageDown') return run(() => cycleTab(1));
+  if (mod && event.key === 'PageUp') return run(() => cycleTab(-1));
   if (event.key === 'F3') return run(() => (mode === 'read' ? findInReader(event.shiftKey) : event.shiftKey ? editor.findPrevious() : editor.findNext()));
   if (!mod) return;
   if (event.altKey) {
@@ -790,6 +919,7 @@ document.addEventListener('keydown', (event) => {
   }
   if (event.shiftKey) {
     if (key === 's') return run(saveAs);
+    if (key === 'o') return run(openFolderDialog);
     if (key === 'v') return run(openPaste);
     if (key === 'f') return run(() => { focusMode = !focusMode; applySettings(); });
     if (mode === 'read') {
@@ -808,6 +938,8 @@ document.addEventListener('keydown', (event) => {
     case '1': return run(() => setMode('read'));
     case '2': return run(() => setMode('edit'));
     case '3': return run(() => setMode('source'));
+    case '4': return run(() => setMode('split'));
+    case 't': return run(newTab);
     case '\\': return run(toggleSidebar);
     case '/': return run(() => showDialog('#shortcuts'));
     case ',': return run(() => showDialog('#settings'));
@@ -820,30 +952,113 @@ document.addEventListener('keydown', (event) => {
     case 'i': if (mode === 'read') return run(() => format('italic')); return;
     case 'k': if (mode === 'read') return run(() => format('link')); return;
     case "'": if (mode === 'read') return run(() => format('quote')); return;
-    case 'w': return run(() => { const open = document.querySelector('dialog[open]'); if (open) open.close(); });
+    case 'w': return run(() => {
+      const open = document.querySelector('dialog[open]');
+      if (open) { open.close(); return; }
+      if (!$('#findbar').hidden) { $('#findbar').hidden = true; return; }
+      closeTab();
+    });
     default: return;
   }
 });
 
+// ---------------------------------------------------------------- working folder
+
+const workspace = { path: localStorage.getItem('mdlite.workspace') || null, tree: [], expanded: new Set() };
+
+async function openFolderDialog() {
+  const path = await platform.folderDialog();
+  if (path) setWorkspace(path);
+}
+
+function setWorkspace(path) {
+  workspace.path = path;
+  workspace.tree = [];
+  workspace.expanded = new Set();
+  try { path ? localStorage.setItem('mdlite.workspace', path) : localStorage.removeItem('mdlite.workspace'); } catch {}
+  refreshWorkspace();
+}
+
+async function refreshWorkspace() {
+  if (!workspace.path) { renderWorkspace(); return; }
+  try { workspace.tree = await platform.listMarkdown(workspace.path); }
+  catch { workspace.tree = []; workspace.path = null; }
+  renderWorkspace();
+}
+
+function renderWorkspace() {
+  const open = Boolean(workspace.path);
+  $('#open-folder').hidden = open;
+  $('#workspace-head').hidden = !open;
+  const tree = $('#workspace-tree');
+  if (!open) { tree.replaceChildren(); return; }
+  $('#workspace-name').textContent = workspace.path.split(/[\\/]/).filter(Boolean).pop();
+  $('#workspace-head').title = workspace.path;
+  const rows = [];
+  const walk = (nodes, depth) => {
+    for (const node of nodes) {
+      const row = document.createElement('button');
+      row.style.setProperty('--depth', depth);
+      if (node.dir) {
+        const expanded = workspace.expanded.has(node.path) || (depth === 0 && !workspace.expanded.has('!' + node.path));
+        row.className = 'tree-row folder';
+        row.innerHTML = `<span class="chevron${expanded ? '' : ' closed'}">${icon('chevron', 10)}</span>${icon('folder', 13)}<span class="name"></span>`;
+        row.querySelector('.name').textContent = node.name;
+        row.addEventListener('click', () => {
+          if (expanded) { workspace.expanded.delete(node.path); if (depth === 0) workspace.expanded.add('!' + node.path); }
+          else { workspace.expanded.add(node.path); workspace.expanded.delete('!' + node.path); }
+          renderWorkspace();
+        });
+        rows.push(row);
+        if (expanded) walk(node.children, depth + 1);
+      } else {
+        row.className = 'tree-row file' + (doc && doc.path === node.path ? ' active' : '');
+        row.title = node.path;
+        row.innerHTML = `<span class="chevron" hidden></span>${icon('file', 13)}<span class="name"></span>`;
+        row.querySelector('.name').textContent = node.name.replace(/\.(md|markdown|mdown|mkd)$/i, '');
+        row.addEventListener('click', (event) => openPath(node.path, { newTab: event.ctrlKey || event.metaKey }));
+        rows.push(row);
+      }
+    }
+  };
+  walk(workspace.tree, 0);
+  if (!rows.length) rows.push(Object.assign(document.createElement('p'), { className: 'empty', textContent: t('Sin archivos Markdown') }));
+  tree.replaceChildren(...rows);
+}
+
 // ---------------------------------------------------------------- start
 
+// The window itself never scrolls; only the panes do.
+window.addEventListener('scroll', () => { if (window.scrollY || window.scrollX) window.scrollTo(0, 0); });
+document.addEventListener('scroll', (event) => {
+  const root = document.scrollingElement;
+  if (event.target === document && root && (root.scrollTop || root.scrollLeft)) { root.scrollTop = 0; root.scrollLeft = 0; }
+}, true);
+
 for (const node of document.querySelectorAll('[data-icon]')) node.insertAdjacentHTML('afterbegin', icon(node.dataset.icon));
-platform.onDrop((path) => openPath(path));
-const closeCheck = async () => confirmDiscard();
-closeCheck.sync = () => !doc.dirty;
+platform.onDrop(async (paths) => { for (const path of paths) await openPath(path); });
+const closeCheck = async () => {
+  for (const tab of [...tabs]) {
+    if (!tab.doc.dirty) continue;
+    activate(tab);
+    if (!(await confirmDiscard())) return false;
+  }
+  return true;
+};
+closeCheck.sync = () => !tabs.some((tab) => tab.doc.dirty);
 platform.onCloseRequested(closeCheck);
 
 applySettings();
-if (!doc.text) load('welcome', welcome[currentLanguage()]);
-updateChrome();
+activate(makeTab('welcome', welcome[currentLanguage()]));
 trackPosition();
+if (workspace.path) refreshWorkspace(); else renderWorkspace();
 
 (async () => {
   const initial = await platform.initialFile();
   if (initial) await openPath(initial);
   if (!isTauri) {
     platform.seed('/memory/sample.md', welcome.en);
-    window.mdlite = { openPath, setMode, doc };
+    window.mdlite = { openPath, setMode, tabs, newTab };
   }
   const last = Number(localStorage.getItem('mdlite.lastUpdateCheck') || 0);
   if (settings.updates && Date.now() - last > 86_400_000) checkForUpdates(false);

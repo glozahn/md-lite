@@ -67,7 +67,8 @@ svg { flex: none; display: block; }
 [hidden] { display: none !important; }
 .muted { color: var(--muted); }
 
-#app { display: grid; grid-template-columns: 260px 1fr; height: 100vh; transition: grid-template-columns 0.22s ease; }
+html { overflow: hidden; }
+#app { position: fixed; inset: 0; display: grid; grid-template-columns: 260px 1fr; transition: grid-template-columns 0.22s ease; }
 #app.no-sidebar { grid-template-columns: 0 1fr; }
 #app.no-sidebar #sidebar { visibility: hidden; }
 
@@ -161,6 +162,37 @@ svg { flex: none; display: block; }
 .link-button { margin-left: auto; color: var(--sidebar-text); display: flex; align-items: center; gap: 6px; }
 .link-button:hover { color: var(--accent); }
 
+/* ------------------------------------------------------------ working folder */
+
+#workspace { margin: 4px 0 6px; }
+#workspace .doc-row kbd { margin-left: auto; }
+#workspace-head { display: flex; align-items: center; gap: 2px; padding-right: 4px; }
+#workspace-head .section-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: uppercase; }
+#workspace-head .icon-button { color: var(--sidebar-label); margin-top: 8px; }
+.tree-row { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 28px; padding: 4px 8px 4px calc(6px + var(--depth) * 14px); border-radius: 8px; color: var(--sidebar-text); text-align: left; }
+.tree-row:hover { background: var(--hover); }
+.tree-row svg { color: var(--sidebar-label); }
+.tree-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-row .chevron { width: 12px; }
+.tree-row .chevron[hidden] { display: block !important; visibility: hidden; }
+.tree-row.active { background: var(--active-bg); color: var(--accent); font-weight: 500; }
+.tree-row.active svg { color: var(--accent); }
+#workspace-tree .empty { color: var(--faint); font-size: 12px; margin: 4px 10px; }
+
+/* ------------------------------------------------------------ tabs */
+
+#tabs { display: flex; align-items: stretch; gap: 1px; height: 34px; padding: 0 8px; background: var(--hover); border-bottom: 1px solid var(--hairline); overflow-x: auto; flex: none; }
+.tab { display: flex; align-items: center; gap: 6px; min-width: 110px; max-width: 220px; flex: 1 1 160px; padding: 0 6px 0 12px; font-size: 12px; color: var(--muted); cursor: default; border-radius: 8px 8px 0 0; margin-top: 4px; }
+.tab:hover { background: color-mix(in srgb, var(--paper) 50%, transparent); }
+.tab.active { background: var(--paper); color: var(--text); font-weight: 500; }
+.tab-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
+.tab-close { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; color: var(--faint); opacity: 0; flex: none; }
+.tab:hover .tab-close, .tab.active .tab-close { opacity: 1; }
+.tab-close:hover { background: var(--hover); color: var(--text); }
+.tab-new { width: 28px; display: grid; place-items: center; color: var(--muted); border-radius: 7px; margin: 4px 0 0 2px; }
+.tab-new:hover { background: color-mix(in srgb, var(--paper) 50%, transparent); color: var(--text); }
+
 /* ------------------------------------------------------------ toolbar */
 
 #main { display: flex; flex-direction: column; min-width: 0; background: var(--paper); }
@@ -200,7 +232,14 @@ svg { flex: none; display: block; }
 
 /* ------------------------------------------------------------ reading view */
 
-#reader, #editor { flex: 1; min-height: 0; overflow: auto; outline: none; }
+#panes { flex: 1; min-height: 0; display: flex; --split: 50%; }
+#reader, #editor { flex: 1; min-width: 0; min-height: 0; overflow: auto; outline: none; }
+#panes[data-mode="split"] #editor { flex: 0 0 var(--split); }
+#panes[data-mode="split"] .markdown { padding-left: 28px; padding-right: 28px; }
+#panes[data-mode="split"] #editor .cm-content { padding-left: 24px; padding-right: 24px; }
+#divider { flex: 0 0 7px; margin: 0 -3px; cursor: col-resize; position: relative; z-index: 2; }
+#divider::after { content: ""; position: absolute; left: 3px; top: 0; bottom: 0; width: 1px; background: var(--rule); }
+#divider:hover::after { background: var(--accent); }
 #reader::-webkit-scrollbar, #editor ::-webkit-scrollbar { width: 10px; height: 10px; }
 #reader::-webkit-scrollbar-thumb, #editor ::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }
 #reader::-webkit-scrollbar-thumb:hover { background-color: var(--faint); }

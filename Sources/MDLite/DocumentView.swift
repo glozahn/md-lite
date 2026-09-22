@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 enum DocumentMode: String, CaseIterable, Identifiable {
-    case read, edit, source
+    case read, edit, source, split
     var id: String { rawValue }
 }
 
@@ -12,6 +12,63 @@ protocol DocumentEditing: AnyObject {
     func perform(_ action: FormatAction)
     func toggleTask(at offset: Int)
     func find(_ action: NSTextFinder.Action)
+}
+
+/// Lays out the reader, the editor, or both side by side with a draggable divider.
+final class DocumentContainerView: NSView {
+    let editorPane: NSView
+    let readerPane: NSView
+    private let divider = SplitDivider()
+    var mode: DocumentMode = .read { didSet { if mode != oldValue { needsLayout = true } } }
+    var ratio: CGFloat = UserDefaults.standard.object(forKey: "splitRatio") as? CGFloat ?? 0.5
+
+    init(editor: NSView, reader: NSView) {
+        editorPane = editor
+        readerPane = reader
+        super.init(frame: .zero)
+        addSubview(editor)
+        addSubview(reader)
+        addSubview(divider)
+        divider.onDrag = { [weak self] x in
+            guard let self, self.bounds.width > 0 else { return }
+            self.ratio = min(0.75, max(0.25, x / self.bounds.width))
+            UserDefaults.standard.set(self.ratio, forKey: "splitRatio")
+            self.needsLayout = true
+        }
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override var isFlipped: Bool { true }
+
+    override func layout() {
+        super.layout()
+        let size = bounds.size
+        editorPane.isHidden = mode == .read
+        readerPane.isHidden = mode == .edit || mode == .source
+        divider.isHidden = mode != .split
+        switch mode {
+        case .read: readerPane.frame = bounds
+        case .edit, .source: editorPane.frame = bounds
+        case .split:
+            let x = (size.width * ratio).rounded()
+            editorPane.frame = NSRect(x: 0, y: 0, width: x, height: size.height)
+            divider.frame = NSRect(x: x - 3, y: 0, width: 7, height: size.height)
+            readerPane.frame = NSRect(x: x + 1, y: 0, width: max(0, size.width - x - 1), height: size.height)
+        }
+    }
+}
+
+private final class SplitDivider: NSView {
+    var onDrag: ((CGFloat) -> Void)?
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.separatorColor.setFill()
+        NSRect(x: bounds.midX - 0.5, y: 0, width: 1, height: bounds.height).fill()
+    }
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .resizeLeftRight) }
+    override func mouseDragged(with event: NSEvent) {
+        guard let superview else { return }
+        onDrag?(superview.convert(event.locationInWindow, from: nil).x)
+    }
 }
 
 struct DocumentView: NSViewRepresentable {
@@ -26,11 +83,11 @@ struct DocumentView: NSViewRepresentable {
 @MainActor
 final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
     let store: ReaderStore
-    let container = NSView()
     private let readerScroll = NSScrollView()
     private let editorScroll = NSScrollView()
     let reader = MDTextView.make()
     let editor = MDTextView.make()
+    lazy var container = DocumentContainerView(editor: editorScroll, reader: readerScroll)
 
     private var renderVersion = -1
     private var contentVersion = -1
@@ -44,6 +101,7 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
     private var applying = false
     private var restyleWork: DispatchWorkItem?
     private var spyScheduled = false
+    private var syncScheduled = false
 
     init(store: ReaderStore) {
         self.store = store
@@ -57,11 +115,8 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
             scroll.automaticallyAdjustsContentInsets = false
             scroll.contentInsets = NSEdgeInsetsZero
             scroll.documentView = text
-            scroll.autoresizingMask = [.width, .height]
-            scroll.frame = container.bounds
             scroll.contentView.postsBoundsChangedNotifications = true
             NotificationCenter.default.addObserver(self, selector: #selector(scrolled), name: NSView.boundsDidChangeNotification, object: scroll.contentView)
-            container.addSubview(scroll)
             text.delegate = self
             text.onToggleTask = { [weak self] offset in self?.store.toggleTask(at: offset) }
             text.onOpenLink = { [weak self] url in _ = self?.store.follow(url) }
@@ -75,7 +130,7 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
         editor.allowsUndo = true
         editor.usesFontPanel = false
         editor.isContinuousSpellCheckingEnabled = false
-        editorScroll.isHidden = true
+        _ = container
         store.document = self
     }
 
@@ -83,7 +138,12 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
 
     func sync() {
         reader.columnWidth = store.columnWidth
-        editor.columnWidth = store.mode == .source ? store.columnWidth + 60 : store.columnWidth
+        editor.columnWidth = store.mode == .source || store.mode == .split ? store.columnWidth + 60 : store.columnWidth
+        let compact: CGFloat = store.mode == .split ? 22 : 36
+        reader.minimumInset = compact
+        editor.minimumInset = compact
+        reader.updateInsets()
+        editor.updateInsets()
         reader.mdLayoutManager?.accent = store.accentNSColor
         editor.mdLayoutManager?.accent = store.accentNSColor
         for view in [reader, editor] {
@@ -141,8 +201,8 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
         mode = new
         var anchor: Int?
         if let old { anchor = old == .read ? sourceOffsetAtReaderTop() : editor.topVisibleCharacter() }
-        readerScroll.isHidden = new != .read
-        editorScroll.isHidden = new == .read
+        container.mode = new
+        container.layoutSubtreeIfNeeded()
         if new == .read {
             container.window?.makeFirstResponder(reader)
             if let anchor { DispatchQueue.main.async { self.reader.scrollCharacterToTop(self.store.rendered.renderedOffset(forSource: anchor)) } }
@@ -154,8 +214,15 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
             } else {
                 DispatchQueue.main.async { self.editor.scrollRangeToVisible(self.editor.selectedRange()) }
             }
+            if new == .split { DispatchQueue.main.async { self.syncReaderToEditor() } }
         }
         updateSpy()
+    }
+
+    /// Split view: the reading pane follows the editor.
+    private func syncReaderToEditor() {
+        guard store.mode == .split else { return }
+        reader.scrollCharacterToTop(store.rendered.renderedOffset(forSource: editor.topVisibleCharacter()), offset: 14)
     }
 
     private func sourceOffsetAtReaderTop() -> Int {
@@ -174,9 +241,8 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
         case .top:
             visibleText.scrollCharacterToTop(0)
         case .heading(let item):
-            if store.mode == .read {
-                reader.scrollCharacterToTop(item.range.location)
-            } else {
+            if store.mode != .edit && store.mode != .source { reader.scrollCharacterToTop(item.range.location) }
+            if store.mode != .read {
                 let location = min(item.source, (editor.string as NSString).length)
                 editor.setSelectedRange(NSRange(location: location, length: 0))
                 editor.scrollCharacterToTop(location)
@@ -254,6 +320,13 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
     // MARK: Scroll spy
 
     @objc private func scrolled(_ notification: Notification) {
+        if store.mode == .split, (notification.object as? NSView) === editorScroll.contentView, !syncScheduled {
+            syncScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                self?.syncScheduled = false
+                self?.syncReaderToEditor()
+            }
+        }
         guard !spyScheduled else { return }
         spyScheduled = true
         DispatchQueue.main.async { [weak self] in

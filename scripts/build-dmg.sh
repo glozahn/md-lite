@@ -16,23 +16,26 @@ trap 'rm -rf "$STAGING"' EXIT
 # ditto preserves the app bundle's metadata and signature.
 ditto "$APP" "$STAGING/MD Lite.app"
 ln -s /Applications "$STAGING/Applications"
-cat > "$STAGING/READ ME.txt" <<'INSTALL'
-MD Lite — A little space to read.
+cat > "$STAGING/README.md" <<INSTALL
+# MD Lite ${VERSION}
 
-Installation
-1. Drag MD Lite into Applications.
+**A little space to read — and write.**
+
+## Install
+
+1. Drag **MD Lite** into **Applications**.
 2. Eject this disk image.
 3. Open MD Lite from Applications.
 
-Requires macOS 14 or later and a Mac matching the architecture in the DMG filename.
+Requires macOS 14 or later on Apple silicon. This release is signed with a Developer ID certificate and notarized by Apple.
 
-This release is signed with a Developer ID certificate and notarized by Apple.
+## Start
 
-Open Markdown files with Command-O or drag them into the window.
-The application follows your system language (English or Spanish).
-Language, appearance, and accent color can be changed in Reading Preferences.
+- Open Markdown with **⌘O**, drop files into the window, or open a whole folder with **⇧⌘O**.
+- **⌘1** Reading · **⌘2** Editor · **⌘3** Source · **⌘4** Split. Each document gets its own tab (**⌘T**, **⌘W**).
+- **⌘/** shows every shortcut; **⌘,** opens Settings.
 
-MD Lite is open source under the MIT License.
+MD Lite is open source under the MIT License: https://github.com/glozahn/md-lite
 Third-party license notices are included inside the application bundle.
 INSTALL
 cp LICENSE "$STAGING/LICENSE.txt"

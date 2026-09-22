@@ -23,12 +23,13 @@ struct ShortcutsView: View {
     private var sections: [(String, [(String, String)])] {
         [
             (store.t("Vista"), [
-                (store.t("Lectura"), "⌘ 1"), (store.t("Editor"), "⌘ 2"), (store.t("Código"), "⌘ 3"),
+                (store.t("Lectura"), "⌘ 1"), (store.t("Editor"), "⌘ 2"), (store.t("Código"), "⌘ 3"), (store.t("Dividida"), "⌘ 4"),
                 (store.t("Alternar lectura y edición"), "⌘ E"), (store.t("Mostrar u ocultar la barra lateral"), "⌃ ⌘ S"),
                 (store.t("Modo enfoque"), "⇧ ⌘ F"), (store.t("Aumentar / reducir texto"), "⌘ + −"), (store.t("Tamaño original"), "⌘ 0")
             ]),
             (store.t("Archivo"), [
-                (store.t("Nueva nota"), "⌘ N"), (store.t("Abrir"), "⌘ O"), (store.t("Guardar"), "⌘ S"),
+                (store.t("Nueva pestaña"), "⌘ T"), (store.t("Cerrar"), "⌘ W"), (store.t("Nueva nota"), "⌘ N"),
+                (store.t("Abrir"), "⌘ O"), (store.t("Abrir carpeta…"), "⇧ ⌘ O"), (store.t("Guardar"), "⌘ S"), (store.t("Ajustes"), "⌘ ,"),
                 (store.t("Guardar como…"), "⇧ ⌘ S"), (store.t("Pegar y leer"), "⇧ ⌘ V"), (store.t("Volver a cargar"), "⌘ R")
             ]),
             (store.t("Edición"), [

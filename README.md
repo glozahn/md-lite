@@ -17,6 +17,7 @@ A lightweight, native Markdown reader and editor for macOS. Built with SwiftUI, 
 | **Reading** | ⌘1 | The finished document: typography, tables, images, diagrams. |
 | **Editor** | ⌘2 | Write with the formatting in view. Markers such as `**` or `#` only appear on the line you are editing. |
 | **Source** | ⌘3 | Plain Markdown with syntax colors. |
+| **Split** | ⌘4 | Source on the left, the finished page on the right, scrolling together. Drag the divider to resize. |
 
 Press **⌘E** to jump between reading and editing. Undo and redo (**⌘Z**, **⇧⌘Z**) work across every edit, including checking a task in the reading view. Files you open save themselves as you type; new notes ask where to go the first time you press **⌘S**.
 
@@ -34,6 +35,10 @@ MD Lite follows the [GFM specification](https://github.github.com/gfm/) and rend
 - Raw HTML as it appears in real READMEs: `<p align="center">`, `<img width>`, `<picture>`, `<details>`, `<kbd>`, `<sub>`, `<sup>`, HTML tables, and comments. Script-like tags are filtered as GFM requires.
 - [Mermaid](https://github.com/mermaid-js/mermaid) diagrams in ` ```mermaid ` blocks, drawn offline
 - YAML front matter
+
+## Tabs and working folders
+
+Every document opens in its own native tab (**⌘T**), keeps its own undo history, and closes with **⌘W**. Command-W always closes the innermost thing first: a sheet or popover, then About or Settings, then the tab — the app stays open. Open a whole folder with **⇧⌘O** (or drop it on the window) to browse its Markdown files as a tree in the sidebar; hidden and generated folders such as `node_modules` are skipped, and ⌘-click opens a file in a new tab. Settings open with **⌘,**.
 
 ## A calm navigator
 
@@ -57,7 +62,7 @@ Requires **macOS 14 Sonoma or later** and **Apple silicon**.
 
 ### Windows and Linux
 
-Each release also ships **MD Lite for Windows** (`MD-Lite-…-windows-x64-setup.exe`, installs for the current user, no admin rights) and **MD Lite for Linux** (`.AppImage` and `.deb`). It is a separate, lightweight [Tauri](https://tauri.app) app in [`desktop/`](desktop) that uses the system WebView: the same GitHub Flavored Markdown, HTML, alerts, code highlighting, and Mermaid rendering; Reading, Editor, and Source modes with undo; autosave; the outline navigator; and `Ctrl` versions of the shortcuts. The Windows installer is not code-signed yet, so SmartScreen may ask you to confirm the first launch.
+Each release also ships **MD Lite for Windows** (`MD-Lite-…-windows-x64-setup.exe`, installs for the current user, no admin rights) and **MD Lite for Linux** (`.AppImage` and `.deb`). It is a separate, lightweight [Tauri](https://tauri.app) app in [`desktop/`](desktop) that uses the system WebView: the same GitHub Flavored Markdown, HTML, alerts, code highlighting, and Mermaid rendering; Reading, Editor, Source, and Split modes with undo; tabs; working folders; autosave; the outline navigator; and `Ctrl` versions of the shortcuts. The Windows installer is not code-signed yet, so SmartScreen may ask you to confirm the first launch.
 
 To make MD Lite open Markdown files on double-click, choose **MD Lite ▸ Use MD Lite for .md Files…** — a short guide walks you through it. **Check for Updates…** in the same menu compares your version with the latest GitHub release.
 
@@ -67,11 +72,13 @@ Press **⌘/** inside the app to see them all.
 
 | Action | Shortcut |
 | --- | --- |
-| Reading / Editor / Source | ⌘1 · ⌘2 · ⌘3 |
+| Reading / Editor / Source / Split | ⌘1 · ⌘2 · ⌘3 · ⌘4 |
 | Toggle reading and editing | ⌘E |
 | Show or hide the sidebar | ⌃⌘S · ⌘\ |
 | Focus mode | ⇧⌘F |
-| New note · Open · Save · Save As | ⌘N · ⌘O · ⌘S · ⇧⌘S |
+| New tab · Close · Settings | ⌘T · ⌘W · ⌘, |
+| New note · Open · Open folder | ⌘N · ⌘O · ⇧⌘O |
+| Save · Save As | ⌘S · ⇧⌘S |
 | Undo · Redo | ⌘Z · ⇧⌘Z |
 | Find · Find next · Find previous | ⌘F · ⌘G · ⇧⌘G |
 | Bold · Italic · Strikethrough · Inline code · Link | ⌘B · ⌘I · ⇧⌘X · ⇧⌘K · ⌘K |

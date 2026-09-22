@@ -49,13 +49,25 @@ jobs:
         working-directory: desktop
         run: npm ci
 
+      # Upload into an existing release (keeps its title and notes); create one only when missing.
+      - name: Find release
+        id: release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "id=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json databaseId --jq .databaseId 2>/dev/null || true)" >> "$GITHUB_OUTPUT"
+
       - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: desktop
-          tagName: ${{ github.event.inputs.tag || github.ref_name }}
-          releaseName: MD Lite ${{ github.event.inputs.tag || github.ref_name }}
+          releaseId: ${{ steps.release.outputs.id }}
+          tagName: ${{ steps.release.outputs.id == '' && steps.release.outputs.tag || '' }}
+          releaseName: ${{ steps.release.outputs.id == '' && format('MD Lite {0}', steps.release.outputs.tag) || '' }}
           releaseDraft: false
           prerelease: false
           releaseAssetNamePattern: MD-Lite-[version]-[platform]-[arch][setup][ext]

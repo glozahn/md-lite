@@ -31,14 +31,14 @@ enum UpdateChecker {
         return false
     }
 
-    static func checkAutomaticallyIfNeeded(_ store: ReaderStore) {
+    static func checkAutomaticallyIfNeeded(_ store: AppPreferences) {
         guard store.checkForUpdatesAutomatically else { return }
         let last = UserDefaults.standard.double(forKey: "lastUpdateCheck")
         guard Date().timeIntervalSince1970 - last > 86_400 else { return }
         check(store, userInitiated: false)
     }
 
-    static func check(_ store: ReaderStore, userInitiated: Bool) {
+    static func check(_ store: AppPreferences, userInitiated: Bool) {
         guard !checking, let url = URL(string: "https://api.github.com/repos/\(repository)/releases/latest") else { return }
         checking = true
         var request = URLRequest(url: url, timeoutInterval: 15)
@@ -65,7 +65,7 @@ enum UpdateChecker {
         return Release(version: tag, page: page, download: download, notes: json["body"] as? String ?? "")
     }
 
-    private static func present(_ release: Release?, store: ReaderStore, userInitiated: Bool) {
+    private static func present(_ release: Release?, store: AppPreferences, userInitiated: Bool) {
         let alert = NSAlert()
         guard let release else {
             guard userInitiated else { return }

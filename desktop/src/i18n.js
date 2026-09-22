@@ -127,6 +127,15 @@ const english = {
   'enlace': 'link',
   'Columna': 'Column',
   'Imagen': 'Image',
+  'Dividida': 'Split',
+  'DIVIDIDA': 'SPLIT',
+  'Nueva pestaña': 'New tab',
+  'Cerrar pestaña': 'Close tab',
+  'Cambiar de pestaña': 'Switch tab',
+  'Abrir carpeta de trabajo': 'Open a working folder',
+  'Actualizar carpeta': 'Refresh folder',
+  'Cerrar carpeta': 'Close folder',
+  'Sin archivos Markdown': 'No Markdown files',
 };
 
 let language = 'es';
