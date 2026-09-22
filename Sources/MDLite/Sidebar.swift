@@ -44,6 +44,7 @@ struct Sidebar: View {
     @ObservedObject var store: ReaderStore
     @ObservedObject var bench: Workbench
     @ObservedObject var prefs = AppPreferences.shared
+    @Environment(\.openSettings) private var openSettings
     @Environment(\.colorScheme) private var colorScheme
 
     private var palette: SidebarPalette { SidebarPalette(scheme: colorScheme) }
@@ -151,12 +152,13 @@ struct Sidebar: View {
                 .overlay { Circle().stroke(palette.live.opacity(0.2), lineWidth: 3) }
             Text(store.t("Lectura local")).font(.system(size: 12))
             Spacer()
-            SettingsLink {
+            Button { AppWindows.showSettings(openSettings) } label: {
                 HStack(spacing: 5) {
                     Image(systemName: "gearshape").font(.system(size: 12))
                     Text(store.t("Ajustes")).font(.system(size: 12))
                 }
                 .foregroundStyle(palette.text)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help(store.t("Ajustes") + " · ⌘,")

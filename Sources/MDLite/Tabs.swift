@@ -279,7 +279,7 @@ private struct TabChip: View {
             // A click on the tab that is already in front shows where the file lives.
             if selected && paneFocused { showPath.toggle() } else { bench.focus(store) }
         }
-        .popover(isPresented: $showPath, arrowEdge: .bottom) { PathPopover(store: store) }
+        .popover(isPresented: $showPath, arrowEdge: .bottom) { PathPopover(store: store).onDisappear { showPath = false } }
         .onDrag { store.dragProvider() }
         .onDrop(of: [.mdliteTab, .fileURL], delegate: TabDropDelegate(anchor: store, pane: pane, bench: bench, targeted: $targeted))
         .help(store.fileURL?.path ?? store.title)

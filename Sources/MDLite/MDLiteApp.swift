@@ -243,7 +243,7 @@ struct DocumentColumn: View {
         }
         .buttonStyle(.plain)
         .help(store.fileURL?.path ?? store.t("Este documento aún no está guardado."))
-        .popover(isPresented: $showPath, arrowEdge: .bottom) { PathPopover(store: store) }
+        .popover(isPresented: $showPath, arrowEdge: .bottom) { PathPopover(store: store).onDisappear { showPath = false } }
         .onDrag { store.dragProvider() }
     }
 
@@ -276,7 +276,12 @@ struct DocumentColumn: View {
             .buttonStyle(.plain)
             .padding(.horizontal, 3)
             .readerGlass(cornerRadius: 11, interactive: true)
-            .popover(isPresented: $store.showQuickSettings, arrowEdge: .top) { QuickSettingsView(prefs: store.prefs, store: store) }
+            .popover(isPresented: $store.showQuickSettings, arrowEdge: .top) {
+                QuickSettingsView(prefs: store.prefs, store: store)
+                    // AppKit can close a popover on its own (when the window stops being active, say)
+                    // without telling SwiftUI, and the button would then need two clicks to show it again.
+                    .onDisappear { store.showQuickSettings = false }
+            }
             .help(store.t("Tipografía y apariencia"))
             .accessibilityLabel(store.t("Preferencias"))
     }

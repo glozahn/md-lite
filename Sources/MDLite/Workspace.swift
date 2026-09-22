@@ -8,6 +8,28 @@ struct DocumentTarget: Codable, Hashable {
     var workspace: URL?
 }
 
+/// Secondary windows (Settings, About). SwiftUI opens them, but leaves them behind the
+/// document window when they already exist, so bring them to the front ourselves.
+@MainActor
+enum AppWindows {
+    /// SwiftUI's openSettings opens the window; raising it is on us.
+    static func showSettings(_ open: OpenSettingsAction) {
+        if raise("Settings") { return }
+        open()
+        DispatchQueue.main.async { _ = raise("Settings") }
+    }
+
+    @discardableResult
+    static func raise(_ fragment: String) -> Bool {
+        guard let window = NSApp.windows.first(where: {
+            $0.identifier?.rawValue.localizedCaseInsensitiveContains(fragment) == true && $0.isVisible
+        }) else { return false }
+        NSApp.activate()
+        window.makeKeyAndOrderFront(nil)
+        return true
+    }
+}
+
 struct FileNode: Identifiable, Hashable {
     let url: URL
     let isDirectory: Bool

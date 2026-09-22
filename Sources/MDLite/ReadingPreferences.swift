@@ -137,6 +137,7 @@ enum ReaderLanguage {
         "⌘-clic para abrir en una pestaña nueva": "⌘-click to open in a new tab",
         "Un pequeño espacio para leer": "A little space to read",
         "Ajustes": "Settings",
+        "Ajustes…": "Settings…",
         "Bienvenida": "Welcome",
         "Tamaño del texto": "Text Size",
         "%d imágenes remotas bloqueadas para proteger tu privacidad.": "%d remote images blocked to protect your privacy.",

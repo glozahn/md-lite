@@ -65,15 +65,24 @@ struct AppCommands: Commands {
     @FocusedObject private var store: ReaderStore?
     @FocusedObject private var bench: Workbench?
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
 
     private func t(_ key: String) -> String { prefs.t(key) }
 
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
-            Button(t("Acerca de MD Lite")) { openWindow(id: "about") }
+            Button(t("Acerca de MD Lite")) {
+                if !AppWindows.raise("about") {
+                    openWindow(id: "about")
+                    DispatchQueue.main.async { AppWindows.raise("about") }
+                }
+            }
             Button(t("Buscar actualizaciones…")) { UpdateChecker.check(prefs, userInitiated: true) }
             Divider()
             Button(t("Usar MD Lite para abrir .md…")) { (store ?? DocumentRouter.shared.keyStore)?.showDefaultAppGuide = true }
+        }
+        CommandGroup(replacing: .appSettings) {
+            Button(t("Ajustes…")) { AppWindows.showSettings(openSettings) }.keyboardShortcut(",")
         }
         CommandGroup(replacing: .newItem) {
             Button(t("Nueva pestaña")) {
