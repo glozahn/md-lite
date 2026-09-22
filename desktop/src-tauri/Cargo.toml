@@ -1,6 +1,6 @@
 [package]
 name = "md-lite"
-version = "0.3.3"
+version = "0.3.4"
 description = "A lightweight Markdown reader and editor"
 authors = ["MD Lite contributors"]
 license = "MIT"
