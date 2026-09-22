@@ -55,6 +55,10 @@ Requires **macOS 14 Sonoma or later** and **Apple silicon**.
 2. Drag **MD Lite** into **Applications**.
 3. Open a `.md` file from Finder or press **⌘O** inside the app.
 
+### Windows and Linux
+
+Each release also ships **MD Lite for Windows** (`MD-Lite-…-windows-x64-setup.exe`, installs for the current user, no admin rights) and **MD Lite for Linux** (`.AppImage` and `.deb`). It is a separate, lightweight [Tauri](https://tauri.app) app in [`desktop/`](desktop) that uses the system WebView: the same GitHub Flavored Markdown, HTML, alerts, code highlighting, and Mermaid rendering; Reading, Editor, and Source modes with undo; autosave; the outline navigator; and `Ctrl` versions of the shortcuts. The Windows installer is not code-signed yet, so SmartScreen may ask you to confirm the first launch.
+
 To make MD Lite open Markdown files on double-click, choose **MD Lite ▸ Use MD Lite for .md Files…** — a short guide walks you through it. **Check for Updates…** in the same menu compares your version with the latest GitHub release.
 
 ## Shortcuts
@@ -92,6 +96,16 @@ swift test
 ./scripts/build-app.sh
 open "dist/MD Lite.app"
 ```
+
+The Windows and Linux app builds with Node 22 and Rust:
+
+```sh
+cd desktop
+npm install
+npm run tauri build
+```
+
+GitHub Actions builds both platforms and attaches the installers to each release (`.github/workflows/desktop.yml`).
 
 Create a DMG with `./scripts/build-dmg.sh`. `scripts/notarize-app.sh` signs with a Developer ID, notarizes, and staples the app; it reads your identity and App Store Connect key from environment variables or from a local, git-ignored `scripts/notarize.env` (see `scripts/notarize.env.example`). Certificates and private keys are never stored in the repository.
 

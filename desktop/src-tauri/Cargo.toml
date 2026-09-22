@@ -1,0 +1,30 @@
+[package]
+name = "md-lite"
+version = "0.3.0"
+description = "A lightweight Markdown reader and editor"
+authors = ["MD Lite contributors"]
+license = "MIT"
+repository = "https://github.com/glozahn/md-lite"
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "md_lite_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

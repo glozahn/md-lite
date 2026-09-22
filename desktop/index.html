@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>MD Lite</title>
+  <link rel="stylesheet" href="/src/styles.css">
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <div class="brand">
+        <div class="brand-mark" data-icon="book"></div>
+        <div>
+          <div class="brand-name">MD Lite</div>
+          <div class="brand-tag" data-t="Un pequeño espacio para leer"></div>
+        </div>
+      </div>
+      <button class="primary-action" id="open-button"><span data-icon="plus"></span><span data-t="Abrir documento"></span><kbd>Ctrl+O</kbd></button>
+      <div class="actions">
+        <button id="new-button"><span data-icon="note"></span><span data-t="Nueva nota"></span></button>
+        <button id="paste-button"><span data-icon="clipboard"></span><span data-t="Pegar"></span></button>
+      </div>
+      <nav class="sidebar-scroll">
+        <div class="section-label" data-t="DOCUMENTO"></div>
+        <button class="doc-row" id="welcome-row"><span data-icon="sparkle"></span><span data-t="Bienvenido"></span></button>
+        <div class="doc-row current" id="current-row" hidden><span data-icon="file"></span><span class="name"></span><span class="dot" hidden></span></div>
+        <div class="outline-head">
+          <span class="section-label" data-t="EN ESTA PÁGINA"></span>
+          <span class="count" id="outline-count" hidden></span>
+          <button class="icon-button tiny" id="collapse-all" hidden></button>
+        </div>
+        <input id="outline-filter" type="search" hidden>
+        <div id="outline"></div>
+        <div id="recent-block" hidden>
+          <div class="section-label with-icon" data-icon="clock"><span data-t="RECIENTES"></span></div>
+          <div id="recent"></div>
+        </div>
+      </nav>
+      <div class="sidebar-foot">
+        <span class="live-dot"></span><span data-t="Lectura local"></span>
+        <button id="sidebar-settings" class="link-button" data-icon="gear"><span data-t="Ajustes"></span></button>
+      </div>
+    </aside>
+
+    <main id="main">
+      <header id="toolbar">
+        <button class="icon-button" id="sidebar-button" data-icon="sidebar"></button>
+        <div class="title"><span data-icon="file" class="muted"></span><span id="doc-title"></span><span id="dirty-dot" hidden></span><span class="ext">.md</span></div>
+        <div class="spacer"></div>
+        <div class="segmented" id="modes">
+          <button data-mode="read"><span data-icon="book"></span><span class="label" data-t="Lectura"></span></button>
+          <button data-mode="edit"><span data-icon="pencil"></span><span class="label" data-t="Editor"></span></button>
+          <button data-mode="source"><span data-icon="code"></span><span class="label" data-t="Código"></span></button>
+        </div>
+        <button class="icon-button" id="find-button" data-icon="search"></button>
+        <div class="zoom">
+          <button id="zoom-out">A−</button><button id="zoom-reset"></button><button id="zoom-in">A+</button>
+        </div>
+        <button class="icon-button" id="star-button" data-icon="star"></button>
+        <button class="icon-button" id="settings-button" data-icon="sliders"></button>
+      </header>
+
+      <div id="formatbar" hidden>
+        <button data-format="heading1">H1</button><button data-format="heading2">H2</button><button data-format="heading3">H3</button>
+        <span class="sep"></span>
+        <button data-format="bold"><b>B</b></button><button data-format="italic"><i>I</i></button><button data-format="strikethrough"><s>S</s></button>
+        <button data-format="code" data-icon="code"></button><button data-format="link" data-icon="link"></button>
+        <span class="sep"></span>
+        <button data-format="bulletList" data-icon="list"></button><button data-format="numberedList" data-icon="listNumbered"></button>
+        <button data-format="taskList" data-icon="check"></button><button data-format="quote" data-icon="quote"></button>
+        <span class="sep"></span>
+        <button data-format="codeBlock" data-icon="braces"></button><button data-format="table" data-icon="table"></button><button data-format="rule" data-icon="minus"></button>
+        <span class="sep"></span>
+        <button data-format="undo" data-icon="undo"></button><button data-format="redo" data-icon="redo"></button>
+      </div>
+
+      <div id="banner" hidden><span id="banner-text"></span><button id="banner-button" data-t="Mostrar"></button></div>
+
+      <div id="findbar" hidden>
+        <span data-icon="search" class="muted"></span>
+        <input id="find-input" type="search">
+        <span id="find-status"></span>
+        <button id="find-prev" class="icon-button tiny" data-icon="up"></button>
+        <button id="find-next" class="icon-button tiny" data-icon="down"></button>
+        <button id="find-close" class="icon-button tiny" data-icon="close"></button>
+      </div>
+
+      <section id="reader" tabindex="-1"><article id="doc" class="markdown"></article></section>
+      <section id="editor" hidden></section>
+
+      <footer id="status">
+        <span data-icon="text" class="muted"></span>
+        <span id="stat-words"></span><span>·</span><span id="stat-minutes"></span><span>·</span><span id="stat-progress"></span>
+        <span class="spacer"></span>
+        <span id="save-state"></span>
+        <span class="accent-dot"></span>
+        <span id="mode-label"></span>
+        <span>UTF-8</span>
+      </footer>
+    </main>
+  </div>
+
+  <dialog id="settings">
+    <form method="dialog">
+      <h2 data-t="Preferencias"></h2>
+      <label class="field"><span data-t="Apariencia"></span>
+        <div class="segmented wide" data-setting="theme">
+          <button type="button" value="system" data-t="Sistema"></button><button type="button" value="light" data-t="Claro"></button><button type="button" value="dark" data-t="Oscuro"></button>
+        </div>
+      </label>
+      <label class="field"><span data-t="Ancho del texto"></span>
+        <div class="segmented wide" data-setting="width">
+          <button type="button" value="narrow" data-t="Estrecho"></button><button type="button" value="normal" data-t="Normal"></button><button type="button" value="wide" data-t="Ancho"></button><button type="button" value="full" data-t="Completo"></button>
+        </div>
+      </label>
+      <label class="field"><span data-t="Idioma"></span>
+        <div class="segmented wide" data-setting="language">
+          <button type="button" value="system" data-t="Sistema"></button><button type="button" value="en">English</button><button type="button" value="es">Español</button>
+        </div>
+      </label>
+      <div class="field"><span data-t="Color de acento"></span><div id="accents"></div></div>
+      <hr>
+      <label class="toggle"><input type="checkbox" id="remote-setting"><span data-t="Cargar siempre imágenes remotas"></span></label>
+      <label class="toggle"><input type="checkbox" id="update-setting"><span data-t="Buscar actualizaciones automáticamente"></span></label>
+      <div class="dialog-foot">
+        <button type="button" class="link-button" id="settings-shortcuts" data-t="Atajos de teclado"></button>
+        <button type="button" class="link-button" id="check-updates" data-t="Buscar actualizaciones"></button>
+        <span class="spacer"></span>
+        <button value="close" class="default" data-t="Cerrar"></button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="shortcuts">
+    <form method="dialog">
+      <div class="dialog-head">
+        <div><h2 data-t="Atajos de teclado"></h2><p class="muted" data-t="Todo MD Lite, sin soltar el teclado."></p></div>
+        <button value="close" data-t="Cerrar"></button>
+      </div>
+      <div id="shortcut-grid"></div>
+    </form>
+  </dialog>
+
+  <dialog id="paste">
+    <form method="dialog">
+      <h2 data-t="Pegar Markdown"></h2>
+      <p class="muted" data-t="Pega o escribe tu Markdown aquí."></p>
+      <textarea id="paste-text" spellcheck="false"></textarea>
+      <div class="dialog-foot">
+        <button value="cancel" data-t="Cancelar"></button>
+        <span class="spacer"></span>
+        <button value="read" class="default" id="paste-read" data-t="Vista de lectura"></button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" hidden></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
