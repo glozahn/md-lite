@@ -15,8 +15,13 @@ struct ScrollRequest: Equatable {
 
 /// Where the reader is in the document. Changes on every scroll step, so few views observe it.
 @MainActor
+/// The heading being read. Kept apart from the store so scrolling only redraws the outline.
 final class ReadingTracker: ObservableObject {
     @Published var currentHeading: Int?
+}
+
+/// Reading progress for the footer. Separate from the heading so each scroll tick does not redraw the outline.
+final class ProgressTracker: ObservableObject {
     @Published var percent = 0
     var progress: Double { Double(percent) / 100 }
 }
@@ -66,7 +71,8 @@ final class ReaderStore: ObservableObject {
         get { tracker.currentHeading }
         set { if tracker.currentHeading != newValue { tracker.currentHeading = newValue } }
     }
-    var progress: Double { tracker.progress }
+    let progressTracker = ProgressTracker()
+    var progress: Double { progressTracker.progress }
     @Published var scrollRequest = ScrollRequest()
     @Published var findRequest = 0
     @Published private(set) var isDirty = false
@@ -528,7 +534,7 @@ final class ReaderStore: ObservableObject {
     func setCurrentHeading(_ id: Int?, progress: Double) {
         currentHeading = id
         let percent = Int((progress * 100).rounded())
-        if tracker.percent != percent { tracker.percent = percent }
+        if progressTracker.percent != percent { progressTracker.percent = percent }
     }
 
     /// Handles links clicked in the document. Returns true when MD Lite handled it.

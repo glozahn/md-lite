@@ -49,6 +49,7 @@ struct Sidebar: View {
     private var palette: SidebarPalette { SidebarPalette(scheme: colorScheme) }
 
     var body: some View {
+
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
                 Image(nsImage: NSApp.applicationIconImage)
@@ -221,6 +222,7 @@ struct FileMenu: View {
     }
 
     var body: some View {
+
         Button(store.t("Abrir")) { DocumentRouter.shared.open(url, from: store) }
         Button(store.t("Abrir en una pestaña nueva")) { DocumentRouter.shared.open(url, from: store, newTab: true) }
         Button(store.t("Abrir a la derecha")) { bench.place(url: url, side: .right) }
@@ -260,6 +262,7 @@ struct FileExtras: View {
     @ObservedObject private var prefs = AppPreferences.shared
 
     var body: some View {
+
         Button(prefs.isFavorite(url) ? store.t("Quitar de favoritos") : store.t("Añadir a favoritos")) { prefs.toggleFavorite(url) }
         Menu(store.t("Etiquetas")) {
             let current = prefs.tags(of: url)
@@ -321,6 +324,7 @@ struct FavoritesSection: View {
     @ObservedObject private var prefs = AppPreferences.shared
 
     var body: some View {
+
         if !prefs.favorites.isEmpty {
             HStack(spacing: 6) {
                 Image(systemName: "star").font(.system(size: 10.5))
@@ -355,6 +359,7 @@ struct WorkspaceSection: View {
     let palette: SidebarPalette
 
     var body: some View {
+
         if let folder = bench.workspace {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
@@ -417,6 +422,7 @@ private struct WorkspaceNodeRow: View {
     }
 
     var body: some View {
+
         if node.isDirectory {
             Button { withAnimation(.snappy(duration: 0.18)) { expanded.toggle() } } label: {
                 HStack(spacing: 6) {
@@ -508,13 +514,17 @@ private struct OutlineList: View {
         return result
     }
 
-    private func hasChildren(_ item: OutlineItem) -> Bool {
-        guard let index = items.firstIndex(where: { $0.id == item.id }), index + 1 < items.count else { return false }
-        return items[index + 1].level > item.level
+    /// Headings that have sub-headings, found in one pass.
+    private var parents: Set<Int> {
+        var result = Set<Int>()
+        for index in items.indices.dropLast() where items[index + 1].level > items[index].level { result.insert(items[index].id) }
+        return result
     }
 
     /// The heading that owns the current position, even when it is folded away.
-    private var activeVisible: Int? {
+    private var activeVisible: Int? { active(in: visible) }
+
+    private func active(in visible: [OutlineItem]) -> Int? {
         guard let current = tracker.currentHeading else { return nil }
         let shown = Set(visible.map(\.id))
         if shown.contains(current) { return current }
@@ -528,14 +538,21 @@ private struct OutlineList: View {
     }
 
     var body: some View {
+
+        // Computed once per render; per-row lookups made every scroll tick cost O(n²).
+        let visible = self.visible
+        let parents = self.parents
+        let active = active(in: visible)
+        let minLevel = self.minLevel
         VStack(alignment: .leading, spacing: 1) {
             HStack(spacing: 6) {
                 Text(store.t("EN ESTA PÁGINA")).font(.system(size: 10.5, weight: .semibold)).tracking(1.2).foregroundStyle(palette.label)
                 Spacer()
-                if items.contains(where: hasChildren) {
+                if !parents.isEmpty {
                     Button {
                         withAnimation(.snappy(duration: 0.2)) {
-                            collapsed = collapsed.isEmpty ? Set(items.filter(hasChildren).filter { $0.level > minLevel || items.filter { $0.level == minLevel }.count > 1 }.map(\.id)) : []
+                            let topLevel = items.filter { $0.level == minLevel }.count
+                            collapsed = collapsed.isEmpty ? Set(items.filter { parents.contains($0.id) && ($0.level > minLevel || topLevel > 1) }.map(\.id)) : []
                         }
                     } label: {
                         Image(systemName: collapsed.isEmpty ? "rectangle.compress.vertical" : "rectangle.expand.vertical").font(.system(size: 10.5))
@@ -570,7 +587,9 @@ private struct OutlineList: View {
                 Text(store.t("Los títulos aparecerán aquí.")).font(.system(size: 12)).foregroundStyle(palette.faint).padding(8)
             } else {
                 VStack(alignment: .leading, spacing: 1) {
-                    ForEach(visible) { item in row(item, active: activeVisible == item.id) }
+                    ForEach(visible) { item in
+                        row(item, active: active == item.id, parent: parents.contains(item.id), depth: min(4, item.level - minLevel))
+                    }
                 }
                 .overlay(alignment: .leading) {
                     Rectangle().fill(palette.rail).frame(width: 1).padding(.leading, 20).padding(.vertical, 8)
@@ -590,10 +609,8 @@ private struct OutlineList: View {
         }
     }
 
-    private func row(_ item: OutlineItem, active: Bool) -> some View {
-        let depth = min(4, item.level - minLevel)
-        let parent = hasChildren(item)
-        return HStack(spacing: 4) {
+    private func row(_ item: OutlineItem, active: Bool, parent: Bool, depth: Int) -> some View {
+        HStack(spacing: 4) {
             ZStack {
                 if active { Circle().fill(store.accentColor).frame(width: 6, height: 6) }
             }
@@ -614,7 +631,8 @@ private struct OutlineList: View {
                 Spacer().frame(width: 12)
             }
             Text(item.title)
-                .font(.system(size: depth == 0 ? 13 : 12.5, weight: active ? .semibold : (depth == 0 ? .medium : .regular)))
+                // Same weight when active: a bolder title can wrap differently and re-lay out the whole sidebar.
+                .font(.system(size: depth == 0 ? 13 : 12.5, weight: depth == 0 ? .medium : .regular))
                 .foregroundStyle(active ? store.accentColor : (depth == 0 ? palette.strong : palette.text))
                 .lineLimit(2).multilineTextAlignment(.leading)
             Spacer(minLength: 4)
@@ -627,8 +645,9 @@ private struct OutlineList: View {
         .contentShape(Rectangle())
         .onTapGesture { store.navigate(item) }
         .onHover { inside in hovered = inside ? item.id : (hovered == item.id ? nil : hovered) }
-        .help(item.title)
+        // Only long titles need a tooltip; each one is a tracking area AppKit refreshes on every change.
+        .help(item.title.count > 32 ? item.title : "")
         .id(item.id)
-        .animation(.easeOut(duration: 0.15), value: active)
+        // No animation: the highlight moves while you scroll, and each animated frame redraws the whole sidebar.
     }
 }

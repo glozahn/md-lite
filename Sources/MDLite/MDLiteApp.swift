@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 
 /// One window: the sidebar and one or two panes of tabs.
 struct WorkbenchView: View {
@@ -11,6 +12,7 @@ struct WorkbenchView: View {
     private var showSidebar: Bool { prefs.sidebarVisible && !bench.focusMode }
 
     var body: some View {
+
         HStack(spacing: 0) {
             if showSidebar {
                 Sidebar(store: focused, bench: bench)
@@ -107,6 +109,7 @@ struct DocumentColumn: View {
     let showSidebar: Bool
     @StateObject private var drop = DropTracker()
     @State private var showPath = false
+    @State private var barWidth: CGFloat = 1200
     @Namespace private var modeNamespace
     @Environment(\.colorScheme) private var colorScheme
 
@@ -117,14 +120,11 @@ struct DocumentColumn: View {
     private var isLastPane: Bool { bench.panes.last === pane || store.focusMode }
 
     var body: some View {
+
         VStack(spacing: 0) {
             if store.focusMode {
                 Color.clear.frame(height: 28)
             } else {
-                if showTabRow {
-                    TabStrip(pane: pane, bench: bench, isFocused: isFocused, leadingInset: showsSidebarToggle && !showSidebar ? 64 : 0)
-                        .padding(.horizontal, 10).padding(.top, 6).frame(height: 40)
-                }
                 toolbar
                 if store.mode != .read {
                     FormatBar(store: store)
@@ -200,16 +200,21 @@ struct DocumentColumn: View {
         }
     }
 
+    /// One bar per pane: the document's title, or its tabs once there are several, then the controls.
     private var toolbar: some View {
         HStack(spacing: 10) {
             if showsSidebarToggle {
-                if !showSidebar && !showTabRow { Spacer().frame(width: 62) }
+                if !showSidebar { Spacer().frame(width: 62) }
                 toolButton("sidebar.left", label: (showSidebar ? store.t("Ocultar barra lateral") : store.t("Mostrar barra lateral")) + " · ⌃⌘S") {
                     if store.focusMode { store.focusMode = false } else { store.sidebarVisible.toggle() }
                 }
             }
-            if !showTabRow { titleButton }
-            Spacer(minLength: 8)
+            if showTabRow {
+                TabStrip(pane: pane, bench: bench, isFocused: isFocused)
+            } else {
+                titleButton
+                Spacer(minLength: 8)
+            }
             if !store.isBlank {
                 modeSwitcher
                 toolButton("arrow.up.left.and.arrow.down.right", label: store.t("Modo enfoque") + " · ⇧⌘F") { store.toggleFocus() }
@@ -217,7 +222,8 @@ struct DocumentColumn: View {
             }
             if isLastPane { globalControls }
         }
-        .padding(.leading, showsSidebarToggle ? 20 : 12).padding(.trailing, 16).frame(height: showTabRow ? 46 : 56)
+        .padding(.leading, showsSidebarToggle ? 20 : 12).padding(.trailing, 16).frame(height: 56)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { barWidth = $0 }
     }
 
     /// File name; hover shows the full path, a click shows where it lives.
@@ -275,30 +281,35 @@ struct DocumentColumn: View {
             .accessibilityLabel(store.t("Preferencias"))
     }
 
-    private var modeSwitcher: some View {
-        ViewThatFits(in: .horizontal) {
-            modeButtons(labels: true)
-            modeButtons(labels: false)
+    /// Next to tabs the modes shrink to icons (the current one keeps its name while there is room).
+    @ViewBuilder private var modeSwitcher: some View {
+        if showTabRow {
+            modeButtons(labels: false, currentLabel: barWidth >= 980)
+        } else {
+            ViewThatFits(in: .horizontal) {
+                modeButtons(labels: true)
+                modeButtons(labels: false)
+            }
         }
     }
 
-    private func modeButtons(labels: Bool) -> some View {
+    private func modeButtons(labels: Bool, currentLabel: Bool = true) -> some View {
         HStack(spacing: 2) {
-            modeButton(.read, symbol: "book", label: store.t("Lectura"), keys: "⌘1", showLabel: labels)
-            modeButton(.edit, symbol: "pencil.line", label: store.t("Editor"), keys: "⌘2", showLabel: labels)
-            modeButton(.source, symbol: "chevron.left.forwardslash.chevron.right", label: store.t("Código"), keys: "⌘3", showLabel: labels)
-            modeButton(.split, symbol: "rectangle.split.2x1", label: store.t("Dividida"), keys: "⌘4", showLabel: labels)
+            modeButton(.read, symbol: "book", label: store.t("Lectura"), keys: "⌘1", showLabel: labels, currentLabel: currentLabel)
+            modeButton(.edit, symbol: "pencil.line", label: store.t("Editor"), keys: "⌘2", showLabel: labels, currentLabel: currentLabel)
+            modeButton(.source, symbol: "chevron.left.forwardslash.chevron.right", label: store.t("Código"), keys: "⌘3", showLabel: labels, currentLabel: currentLabel)
+            modeButton(.split, symbol: "rectangle.split.2x1", label: store.t("Dividida"), keys: "⌘4", showLabel: labels, currentLabel: currentLabel)
         }
         .padding(3)
         .background(.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 11))
     }
 
-    private func modeButton(_ mode: DocumentMode, symbol: String, label: String, keys: String, showLabel: Bool) -> some View {
+    private func modeButton(_ mode: DocumentMode, symbol: String, label: String, keys: String, showLabel: Bool, currentLabel: Bool) -> some View {
         let selected = store.mode == mode
         return Button { store.setMode(mode) } label: {
             HStack(spacing: 5) {
                 Image(systemName: symbol).font(.system(size: 11.5, weight: .medium))
-                if showLabel || selected { Text(label).font(.system(size: 12, weight: .medium)).lineLimit(1).fixedSize() }
+                if showLabel || (selected && currentLabel) { Text(label).font(.system(size: 12, weight: .medium)).lineLimit(1).fixedSize() }
             }
             .foregroundStyle(selected ? store.accentColor : Color.secondary)
             .padding(.horizontal, 10).frame(height: 26)
@@ -344,7 +355,7 @@ struct DocumentColumn: View {
             Text("·")
             Text("\(store.readingMinutes) " + store.t("min de lectura"))
             Text("·")
-            ProgressLabel(tracker: store.tracker)
+            ProgressLabel(tracker: store.progressTracker)
             Spacer()
             saveStatus
             Circle().fill(store.accentColor.opacity(0.65)).frame(width: 4, height: 4)
@@ -377,6 +388,7 @@ struct FormatBar: View {
     @ObservedObject var store: ReaderStore
 
     var body: some View {
+
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 2) {
                 textButton("H1", store.t("Título 1") + " · ⌥⌘1", .heading1)
@@ -447,6 +459,7 @@ struct QuickSettingsView: View {
     private var target: ReaderStore? { store ?? DocumentRouter.shared.keyStore }
 
     var body: some View {
+
         VStack(alignment: .leading, spacing: 15) {
             quickPicker(t("Apariencia"), selection: $prefs.appearance, options: [
                 ("system", t("Sistema")), ("light", t("Claro")), ("dark", t("Oscuro"))
@@ -534,6 +547,7 @@ struct AboutView: View {
     private let githubURL = URL(string: "https://github.com/glozahn/md-lite")!
 
     var body: some View {
+
         VStack(spacing: 16) {
             Image(nsImage: NSApp.applicationIconImage).resizable().interpolation(.high).frame(width: 84, height: 84)
             VStack(spacing: 5) {
@@ -637,9 +651,27 @@ private struct FocusExitButton: View {
 }
 
 
-private struct ProgressLabel: View {
-    @ObservedObject var tracker: ReadingTracker
-    var body: some View { Text("\(tracker.percent)%").monospacedDigit() }
+/// An AppKit label: the percentage changes while scrolling, and a SwiftUI text would redraw the whole window.
+private struct ProgressLabel: NSViewRepresentable {
+    let tracker: ProgressTracker
+
+    final class Coordinator { var subscription: AnyCancellable? }
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSTextField {
+        let field = NSTextField(labelWithString: "")
+        field.font = .monospacedDigitSystemFont(ofSize: 9.5, weight: .regular)
+        field.textColor = .tertiaryLabelColor
+        field.setContentHuggingPriority(.required, for: .horizontal)
+        bind(field, context: context)
+        return field
+    }
+
+    func updateNSView(_ field: NSTextField, context: Context) { bind(field, context: context) }
+
+    private func bind(_ field: NSTextField, context: Context) {
+        context.coordinator.subscription = tracker.$percent.sink { [weak field] percent in field?.stringValue = "\(percent)%" }
+    }
 }
 
 
@@ -650,6 +682,7 @@ private struct EmptyTabView: View {
     @ObservedObject private var prefs = AppPreferences.shared
 
     var body: some View {
+
         ScrollView {
             VStack(spacing: 22) {
                 VStack(spacing: 10) {

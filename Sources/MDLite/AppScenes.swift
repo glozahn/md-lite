@@ -27,6 +27,8 @@ struct MDLiteApp: App {
         }
         .windowResizability(.contentSize)
         .commandsRemoved()
+        // Files opened from Finder go to DocumentRouter; without this SwiftUI shows About for them.
+        .handlesExternalEvents(matching: [])
 
         Settings {
             SettingsView(prefs: prefs)

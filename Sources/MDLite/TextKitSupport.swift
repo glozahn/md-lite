@@ -347,6 +347,8 @@ final class MDTextView: NSTextView {
     var mdLayoutManager: MDLayoutManager? { layoutManager as? MDLayoutManager }
 
     override func setFrameSize(_ newSize: NSSize) {
+        resizing += 1
+        defer { resizing -= 1 }
         super.setFrameSize(newSize)
         updateInsets()
     }
@@ -355,6 +357,15 @@ final class MDTextView: NSTextView {
     /// Autoresizing from a zero-sized clip view would otherwise push it above the visible area.
     override func setFrameOrigin(_ newOrigin: NSPoint) {
         super.setFrameOrigin(.zero)
+    }
+
+    /// NSTextView scrolls its selection back into view whenever its size changes. With non-contiguous
+    /// layout the height is refined while you scroll, so the reader would jump; only the editor needs it.
+    private var resizing = 0  // a count: NSTextView resizes itself again from inside setFrameSize
+
+    override func scrollToVisible(_ rect: NSRect) -> Bool {
+        if resizing > 0 && !isEditable { return false }
+        return super.scrollToVisible(rect)
     }
 
     func updateInsets() {

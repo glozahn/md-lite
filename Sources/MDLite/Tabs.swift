@@ -154,45 +154,57 @@ private struct TabDropDelegate: DropDelegate {
     }
 }
 
+/// Tabs of one pane, sharing the window's single top bar with the document controls.
 struct TabStrip: View {
     @ObservedObject var pane: Pane
     @ObservedObject var bench: Workbench
     let isFocused: Bool
-    var leadingInset: CGFloat = 0
     @State private var stripTargeted = false
+    private let spacing: CGFloat = 4
 
     var body: some View {
-        HStack(spacing: 4) {
-            if leadingInset > 0 { Spacer().frame(width: leadingInset) }
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 3) {
-                        ForEach(pane.tabs, id: \.id) { tab in
-                            TabChip(store: tab, pane: pane, bench: bench, selected: tab.id == pane.selectedID, paneFocused: isFocused)
-                                .id(tab.id)
+
+        GeometryReader { geometry in
+            // Tabs share the room evenly, like Safari's compact tabs, and scroll once they hit their minimum width.
+            let extras: CGFloat = 30 + (bench.panes.count == 2 ? 32 : 0)
+            let available = max(0, geometry.size.width - extras)
+            let count = CGFloat(max(1, pane.tabs.count))
+            let width = min(180, max(112, (available - (count - 1) * spacing) / count))
+            let content = count * width + (count - 1) * spacing
+            HStack(spacing: 4) {
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: spacing) {
+                            ForEach(pane.tabs, id: \.id) { tab in
+                                TabChip(store: tab, pane: pane, bench: bench, selected: tab.id == pane.selectedID,
+                                        paneFocused: isFocused, width: width)
+                                    .id(tab.id)
+                            }
                         }
                     }
-                    .padding(.vertical, 2)
+                    .frame(width: min(available, content))
+                    .onChange(of: pane.selectedID) { _, id in withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id) } }
                 }
-                .onChange(of: pane.selectedID) { _, id in withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id) } }
-            }
-            Button { bench.newTab(in: pane) } label: {
-                Image(systemName: "plus").font(.system(size: 11, weight: .semibold)).frame(width: 24, height: 24).contentShape(Rectangle())
-            }
-            .buttonStyle(.plain).foregroundStyle(.secondary)
-            .help(bench.focusedStore.t("Nueva pestaña") + " · ⌘T")
-            .accessibilityLabel(bench.focusedStore.t("Nueva pestaña"))
-            Spacer(minLength: 6)
-            if bench.panes.count == 2 {
-                Button { bench.closePane(pane) } label: {
-                    Image(systemName: "xmark.rectangle").font(.system(size: 12)).frame(width: 26, height: 24).contentShape(Rectangle())
+                Button { bench.newTab(in: pane) } label: {
+                    Image(systemName: "plus").font(.system(size: 11, weight: .semibold)).frame(width: 26, height: 26).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).foregroundStyle(.secondary)
-                .help(bench.focusedStore.t("Cerrar panel: sus pestañas pasan al otro") + " · ⌥⌘W")
-                .accessibilityLabel(bench.focusedStore.t("Cerrar panel"))
+                .help(bench.focusedStore.t("Nueva pestaña") + " · ⌘T")
+                .accessibilityLabel(bench.focusedStore.t("Nueva pestaña"))
+                Spacer(minLength: 0)
+                if bench.panes.count == 2 {
+                    Button { bench.closePane(pane) } label: {
+                        Image(systemName: "xmark.rectangle").font(.system(size: 12)).frame(width: 28, height: 26).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain).foregroundStyle(.secondary)
+                    .help(bench.focusedStore.t("Cerrar panel: sus pestañas pasan al otro") + " · ⌥⌘W")
+                    .accessibilityLabel(bench.focusedStore.t("Cerrar panel"))
+                }
             }
+            .frame(height: geometry.size.height)
         }
-        .frame(maxWidth: .infinity)
+        .frame(height: 30)
+        .frame(minWidth: 150)
         .background(stripTargeted ? bench.focusedStore.accentColor.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 9))
         .onDrop(of: [.mdliteTab, .fileURL], isTargeted: $stripTargeted) { providers in
             bench.handleDrop(providers, zone: .center, on: pane)
@@ -206,44 +218,63 @@ private struct TabChip: View {
     @ObservedObject var bench: Workbench
     let selected: Bool
     let paneFocused: Bool
+    let width: CGFloat
     @State private var hovering = false
     @State private var targeted = false
     @State private var showPath = false
     @Environment(\.colorScheme) private var colorScheme
 
+    private var fill: Color {
+        if selected {
+            if colorScheme == .dark { return .white.opacity(paneFocused ? 0.13 : 0.08) }
+            return .white.opacity(paneFocused ? 1 : 0.7)
+        }
+        return .primary.opacity(hovering ? 0.075 : 0.04)
+    }
+
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: store.isNewNote ? "square.and.pencil" : (store.isWelcome ? "sparkle" : "doc.text"))
-                .font(.system(size: 10.5)).foregroundStyle(selected ? store.accentColor : Color.secondary)
-            Text(store.title).font(.system(size: 12, weight: selected ? .semibold : .regular)).lineLimit(1)
-                .foregroundStyle(selected ? Color.primary : Color.secondary)
-            Spacer(minLength: 2)
-            ZStack {
-                if store.isDirty && !hovering {
-                    Circle().fill(store.accentColor).frame(width: 6, height: 6)
-                } else if hovering || selected {
+
+        ZStack {
+            HStack(spacing: 5) {
+                Image(systemName: store.isNewNote ? "square.and.pencil" : (store.isWelcome ? "sparkle" : "doc.text"))
+                    .font(.system(size: 10.5)).foregroundStyle(selected ? store.accentColor : Color.secondary)
+                Text(store.title).font(.system(size: 12, weight: selected ? .medium : .regular))
+                    .lineLimit(1).truncationMode(.middle)
+                    .foregroundStyle(selected ? Color.primary : Color.secondary)
+            }
+            .padding(.horizontal, 24)
+            HStack(spacing: 0) {
+                // Close on the left, shown on hover, as in Safari; the unsaved dot balances it on the right.
+                if hovering {
                     Button { bench.close(store) } label: {
-                        Image(systemName: "xmark").font(.system(size: 8.5, weight: .bold)).frame(width: 16, height: 16).contentShape(Rectangle())
+                        Image(systemName: "xmark").font(.system(size: 8.5, weight: .bold)).frame(width: 16, height: 16)
+                            .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain).foregroundStyle(.secondary)
                     .help(store.t("Cerrar") + " · ⌘W")
+                    .accessibilityLabel(store.t("Cerrar"))
                 }
+                Spacer(minLength: 0)
+                if store.isDirty { Circle().fill(store.accentColor).frame(width: 6, height: 6).padding(.trailing, 4) }
             }
-            .frame(width: 16)
+            .padding(.horizontal, 6)
         }
-        .padding(.leading, 10).padding(.trailing, 5)
-        .frame(minWidth: 96, maxWidth: 200, minHeight: 28)
+        .frame(width: width, height: 28)
         .background {
             RoundedRectangle(cornerRadius: 8)
-                .fill(selected ? (colorScheme == .dark ? Color.white.opacity(paneFocused ? 0.12 : 0.07) : Color.white.opacity(paneFocused ? 1 : 0.6))
-                      : (hovering ? Color.primary.opacity(0.05) : .clear))
-                .shadow(color: selected && paneFocused ? .black.opacity(0.1) : .clear, radius: 1.5, y: 1)
+                .fill(fill)
+                .shadow(color: selected && paneFocused ? .black.opacity(0.09) : .clear, radius: 1.2, y: 0.5)
+        }
+        .overlay {
+            if selected { RoundedRectangle(cornerRadius: 8).strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.05)) }
         }
         .overlay(alignment: .leading) {
-            if targeted { Capsule().fill(store.accentColor).frame(width: 2.5).padding(.vertical, 4).offset(x: -3) }
+            if targeted { Capsule().fill(store.accentColor).frame(width: 2.5).padding(.vertical, 4).offset(x: -3.5) }
         }
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
         .onTapGesture {
             // A click on the tab that is already in front shows where the file lives.
             if selected && paneFocused { showPath.toggle() } else { bench.focus(store) }
@@ -285,6 +316,7 @@ struct PathPopover: View {
     @ObservedObject var store: ReaderStore
 
     var body: some View {
+
         VStack(alignment: .leading, spacing: 12) {
             if let url = store.fileURL {
                 let parts = url.pathComponents.filter { $0 != "/" }

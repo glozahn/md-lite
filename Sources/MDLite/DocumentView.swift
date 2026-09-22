@@ -342,9 +342,11 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
                 self?.syncReaderToEditor()
             }
         }
+        // The outline highlight and the footer percentage redraw the window's SwiftUI layer, sidebar
+        // included. Updating them on every frame made scrolling stutter, so do it at most 4 times a second.
         guard !spyScheduled else { return }
         spyScheduled = true
-        DispatchQueue.main.async { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
             self?.spyScheduled = false
             self?.updateSpy()
         }
