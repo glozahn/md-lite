@@ -40,6 +40,8 @@ MD Lite follows the [GFM specification](https://github.github.com/gfm/) and rend
 
 Each window has its own tab strip. **⌘T** opens a clean tab you can drop a file on, or open, create, or paste a document into; every tab keeps its own undo history and scroll position. Drag a tab or a file from Finder or the sidebar onto a document to see where it will land: the left or right half opens it in a side-by-side pane, the middle opens it as a tab there. **⇧⌘]** / **⇧⌘[** switch tabs, **⌃⌘←** / **⌃⌘→** move a tab between panes, and **⌥⌘W** closes a pane, moving its tabs to the other one.
 
+Move a tab out with **⌃⌘N** (or *Move to New Window* in its menu) and it becomes its own window, keeping its undo history and reading position. *Keep on Top* in the Window menu leaves a window floating above your other apps while you read.
+
 **⌘W** always closes the innermost thing first: a sheet or popover, then About or Settings, then the tab (and its pane when it was the last one); the app stays open. Open a whole folder with **⇧⌘O** (or drop it on the window) to browse its Markdown files as a tree in the sidebar; hidden and generated folders such as `node_modules` are skipped, and ⌘-click opens a file in a new tab. Settings open with **⌘,**.
 
 Right-click a tab or any file in the sidebar to open it in a new tab or pane, save a copy, duplicate it, export it as HTML or PDF, print it, add it to Favorites, give it Finder tags and colors, reveal it in Finder, or copy its path. Hover a file to see its full path, or click the tab title for a breadcrumb.
@@ -47,6 +49,10 @@ Right-click a tab or any file in the sidebar to open it in a new tab or pane, sa
 ## A calm navigator
 
 The sidebar outlines the document as a collapsible tree, follows you while you scroll, filters long outlines, and jumps with **⌥⌘↑** / **⌥⌘↓**. Hide it with **⌃⌘S** (or **⌘\\**), or press **⇧⌘F** for focus mode, which hides everything but the text until you press it again (or Esc). Choose a narrow, normal, wide, or full text column in Reading Preferences.
+
+## Updates
+
+MD Lite keeps itself up to date. It checks GitHub Releases, downloads the disk image in the background, and only installs it after checking the download against its published SHA-256 and confirming that it is signed by the same developer and notarized by Apple. A discreet button in the footer restarts into the new version and reopens your documents; if you ignore it, the update lands when you quit. Turn it off in Settings, and read what changed at any time with *Help ▸ What's New*.
 
 ## Screenshots
 
@@ -83,7 +89,7 @@ Press **⌘/** inside the app to see them all.
 | New tab · Close · Settings | ⌘T · ⌘W · ⌘, |
 | Next / previous tab · Close pane | ⇧⌘] · ⇧⌘[ · ⌥⌘W |
 | Move tab to the left / right pane | ⌃⌘← · ⌃⌘→ |
-| New window | ⇧⌘N |
+| New window · Move tab to new window | ⇧⌘N · ⌃⌘N |
 | New note · Open · Open folder | ⌘N · ⌘O · ⇧⌘O |
 | Save · Save As | ⌘S · ⇧⌘S |
 | Undo · Redo | ⌘Z · ⇧⌘Z |

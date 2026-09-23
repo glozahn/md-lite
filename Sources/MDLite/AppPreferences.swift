@@ -21,7 +21,8 @@ final class AppPreferences: ObservableObject {
     @Published var textWidth: String { didSet { defaults.set(textWidth, forKey: "textWidth") } }
     @Published var sidebarVisible: Bool { didSet { defaults.set(sidebarVisible, forKey: "sidebarVisible") } }
     @Published var alwaysLoadRemoteImages: Bool { didSet { defaults.set(alwaysLoadRemoteImages, forKey: "alwaysLoadRemoteImages") } }
-    @Published var checkForUpdatesAutomatically: Bool { didSet { defaults.set(checkForUpdatesAutomatically, forKey: "checkForUpdates") } }
+    /// Check, download and install updates on their own.
+    @Published var automaticUpdates: Bool { didSet { defaults.set(automaticUpdates, forKey: "automaticUpdates") } }
     @Published private(set) var recent: [URL]
     @Published private(set) var favorites: [URL]
     /// Bumped when a Finder tag changes so rows showing tags refresh.
@@ -38,7 +39,7 @@ final class AppPreferences: ObservableObject {
         textWidth = defaults.string(forKey: "textWidth") ?? "normal"
         sidebarVisible = defaults.object(forKey: "sidebarVisible") as? Bool ?? true
         alwaysLoadRemoteImages = defaults.bool(forKey: "alwaysLoadRemoteImages")
-        checkForUpdatesAutomatically = defaults.bool(forKey: "checkForUpdates")
+        automaticUpdates = defaults.object(forKey: "automaticUpdates") as? Bool ?? defaults.object(forKey: "checkForUpdates") as? Bool ?? true
         recent = (defaults.stringArray(forKey: "recentFiles") ?? []).map { URL(fileURLWithPath: $0) }
         favorites = (defaults.stringArray(forKey: "favoriteFiles") ?? []).map { URL(fileURLWithPath: $0) }
         localeObserver = NotificationCenter.default.addObserver(forName: NSLocale.currentLocaleDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
@@ -77,6 +78,17 @@ final class AppPreferences: ObservableObject {
         recent = Array(list.prefix(12))
         defaults.set(recent.map(\.path), forKey: "recentFiles")
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
+    }
+
+    func removeRecent(_ url: URL) {
+        recent.removeAll { $0.standardizedFileURL == url.standardizedFileURL }
+        defaults.set(recent.map(\.path), forKey: "recentFiles")
+    }
+
+    func clearRecent() {
+        recent = []
+        defaults.set([String](), forKey: "recentFiles")
+        NSDocumentController.shared.clearRecentDocuments(nil)
     }
 
     // MARK: Favorites and Finder tags

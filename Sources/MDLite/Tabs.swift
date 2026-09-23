@@ -293,6 +293,8 @@ private struct TabChip: View {
             }
             Button(store.t("Imprimir…")) { store.printDocument() }
             Divider()
+            Button(store.t("Mover a una ventana nueva")) { DocumentRouter.shared.detach(store) }
+                .disabled(bench.allStores.count < 2 && DocumentRouter.shared.workbenches.count < 2)
             Button(store.t("Mover al panel izquierdo")) { bench.place(store: store, side: .left) }
                 .disabled(bench.panes.count == 1 && pane.tabs.count == 1 || bench.panes.first === pane && bench.panes.count == 2)
             Button(store.t("Mover al panel derecho")) { bench.place(store: store, side: .right) }

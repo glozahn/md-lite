@@ -55,7 +55,11 @@ struct WorkbenchScene: View {
             .navigationTitle(bench.focusedStore.title)
             .focusedSceneObject(bench)
             .focusedSceneObject(bench.focusedStore)
-            .background(WindowAccessor { bench.attach($0) })
+            .background(WindowAccessor { window in
+                // macOS would otherwise reopen yesterday's empty windows; MD Lite decides what opens.
+                window.isRestorable = false
+                bench.attach(window)
+            })
             .onAppear { DocumentRouter.shared.openWindow = { openWindow(value: $0) } }
     }
 }
@@ -169,6 +173,14 @@ struct AppCommands: Commands {
             Button(t("Pestaña siguiente")) { bench?.cycleTab(1) }.keyboardShortcut("]", modifiers: [.command, .shift]).disabled(bench == nil)
             Button(t("Pestaña anterior")) { bench?.cycleTab(-1) }.keyboardShortcut("[", modifiers: [.command, .shift]).disabled(bench == nil)
             Divider()
+            Button(t("Mover la pestaña a una ventana nueva")) {
+                if let store = bench?.focusedStore ?? DocumentRouter.shared.keyStore { DocumentRouter.shared.detach(store) }
+            }.keyboardShortcut("n", modifiers: [.command, .control])
+            Toggle(t("Mantener encima"), isOn: Binding(
+                get: { (bench ?? DocumentRouter.shared.keyBench)?.floating ?? false },
+                set: { (bench ?? DocumentRouter.shared.keyBench)?.floating = $0 }
+            ))
+            Divider()
             Button(t("Cerrar panel")) { if let bench { bench.closePane(bench.focusedPane) } }
                 .keyboardShortcut("w", modifiers: [.command, .option]).disabled((bench?.panes.count ?? 1) < 2)
             Button(t("Mover al panel izquierdo")) { if let store { bench?.place(store: store, side: .left) } }
@@ -198,11 +210,20 @@ struct AppCommands: Commands {
         CommandGroup(replacing: .help) {
             Button(t("Atajos de teclado")) { store?.showShortcuts = true }.keyboardShortcut("/").disabled(store == nil)
             Button(t("Bienvenida")) { store?.welcome() }.disabled(store == nil)
+            Button(t("Novedades")) { openChangelog() }
             Divider()
             Link(t("Guía de Markdown"), destination: URL(string: "https://www.markdownguide.org/basic-syntax/")!)
             Link(t("Especificación GFM"), destination: URL(string: "https://github.github.com/gfm/")!)
             Link(t("Informar de un problema"), destination: URL(string: "https://github.com/glozahn/md-lite/issues")!)
         }
+    }
+
+    /// The changelog opens in a tab of its own, unless the current one is free.
+    private func openChangelog() {
+        guard let bench = bench ?? DocumentRouter.shared.keyBench else { return }
+        let target = bench.focusedStore.canReuseForNewDocument ? bench.focusedStore : bench.newTab()
+        target.readChangelog()
+        bench.window?.makeKeyAndOrderFront(nil)
     }
 
     private func format(_ title: String, _ action: FormatAction, _ key: KeyEquivalent, _ modifiers: EventModifiers = .command) -> some View {
@@ -224,6 +245,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { @MainActor in
             AppPreferences.shared.applyWindowAppearance()
             UpdateChecker.checkAutomaticallyIfNeeded(AppPreferences.shared)
+            Updater.shared.showChangelogAfterUpdate()
         }
     }
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -234,4 +256,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated { DocumentRouter.shared.confirmQuit() } ? .terminateNow : .terminateCancel
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+    func applicationWillTerminate(_ notification: Notification) {
+        MainActor.assumeIsolated { Updater.shared.installOnQuit() }
+    }
 }

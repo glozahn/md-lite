@@ -11,6 +11,7 @@ strip -x "$APP/Contents/MacOS/MDLite"
 # Mermaid ships xz-compressed and is only decoded when a document contains a diagram.
 cp -f Resources/Mermaid/mermaid.min.js.xz "$APP/Contents/Resources/mermaid.min.js.xz"
 cp -f Resources/Info.plist "$APP/Contents/Info.plist"
+cp -f CHANGELOG.md "$APP/Contents/Resources/CHANGELOG.md"
 cp -f LICENSE "$APP/Contents/Resources/Licenses/MDLite-MIT.txt"
 cp -f Resources/Mermaid/LICENSE "$APP/Contents/Resources/Licenses/mermaid-LICENSE"
 swift scripts/icon.swift .build/AppIcon.iconset

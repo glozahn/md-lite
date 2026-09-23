@@ -45,6 +45,7 @@ struct Sidebar: View {
     @ObservedObject var bench: Workbench
     @ObservedObject var prefs = AppPreferences.shared
     @Environment(\.openSettings) private var openSettings
+    @State private var hoveringRecent = false
     @Environment(\.colorScheme) private var colorScheme
 
     private var palette: SidebarPalette { SidebarPalette(scheme: colorScheme) }
@@ -105,8 +106,18 @@ struct Sidebar: View {
             HStack(spacing: 6) {
                 Image(systemName: "clock").font(.system(size: 10.5))
                 Text(store.t("RECIENTES")).font(.system(size: 10.5, weight: .semibold)).tracking(1.2)
+                Spacer()
+                // Quiet until you point at the list, like the other section controls.
+                Button { withAnimation(.snappy(duration: 0.2)) { prefs.clearRecent() } } label: {
+                    Image(systemName: "trash").font(.system(size: 10.5)).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .opacity(hoveringRecent ? 1 : 0.45)
+                .help(store.t("Vaciar la lista de recientes"))
+                .accessibilityLabel(store.t("Vaciar la lista de recientes"))
             }
             .foregroundStyle(palette.label).padding(.horizontal, 8).padding(.top, 18).padding(.bottom, 4)
+            .onHover { inside in withAnimation(.easeOut(duration: 0.15)) { hoveringRecent = inside } }
             ForEach(recent, id: \.self) { url in
                 let duplicate = recent.filter { $0.lastPathComponent == url.lastPathComponent }.count > 1
                 Button { DocumentRouter.shared.open(url, from: store) } label: {
@@ -125,7 +136,12 @@ struct Sidebar: View {
                 .buttonStyle(SidebarRowStyle(palette: palette))
                 .help(url.path)
                 .onDrag { NSItemProvider(object: url as NSURL) }
-                .contextMenu { FileMenu(url: url, store: store, bench: bench) }
+                .contextMenu {
+                    FileMenu(url: url, store: store, bench: bench)
+                    Divider()
+                    Button(store.t("Quitar de recientes")) { withAnimation(.snappy(duration: 0.2)) { prefs.removeRecent(url) } }
+                    Button(store.t("Vaciar la lista de recientes")) { withAnimation(.snappy(duration: 0.2)) { prefs.clearRecent() } }
+                }
             }
         }
     }

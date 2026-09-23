@@ -42,7 +42,9 @@ final class ReaderStore: ObservableObject {
     @Published var isNewNote = false
     @Published var showPasteEditor = false
     @Published var pasteDraft = ""
-    var isWelcome: Bool { fileURL == nil && !isPastedDocument && !isNewNote && !isBlank }
+    var isWelcome: Bool { fileURL == nil && !isPastedDocument && !isNewNote && !isBlank && !isChangelog }
+    /// Showing the bundled changelog.
+    @Published private(set) var isChangelog = false
     /// An empty tab waiting for a document.
     @Published private(set) var isBlank = false
     @Published private(set) var rendered = RenderedDocument(text: NSAttributedString(), outline: [])
@@ -113,7 +115,7 @@ final class ReaderStore: ObservableObject {
     var textWidth: String { get { prefs.textWidth } set { prefs.textWidth = newValue } }
     var sidebarVisible: Bool { get { prefs.sidebarVisible } set { prefs.sidebarVisible = newValue } }
     var alwaysLoadRemoteImages: Bool { get { prefs.alwaysLoadRemoteImages } set { prefs.alwaysLoadRemoteImages = newValue } }
-    var checkForUpdatesAutomatically: Bool { get { prefs.checkForUpdatesAutomatically } set { prefs.checkForUpdatesAutomatically = newValue } }
+    var automaticUpdates: Bool { get { prefs.automaticUpdates } set { prefs.automaticUpdates = newValue } }
     var recent: [URL] { prefs.recent }
     var defaultApp: DefaultAppStatus { prefs.defaultApp }
     var resolvedLanguage: String { prefs.resolvedLanguage }
@@ -128,6 +130,7 @@ final class ReaderStore: ObservableObject {
         if let fileURL { return fileURL.deletingPathExtension().lastPathComponent }
         if isNewNote { return t("Nueva nota") }
         if isBlank { return t("Nueva pestaña") }
+        if isChangelog { return t("Novedades") }
         return t(isPastedDocument ? "Texto pegado" : "Bienvenido")
     }
     var readingMinutes: Int { max(1, Int(ceil(Double(wordCount) / 220))) }
@@ -200,6 +203,7 @@ final class ReaderStore: ObservableObject {
 
     private func replaceSource(_ text: String) {
         isBlank = false
+        isChangelog = false
         source = text
         contentVersion += 1
         didReplaceDocument = true
@@ -295,7 +299,23 @@ final class ReaderStore: ObservableObject {
         mode = .edit
     }
 
+    /// The bundled changelog, shown as a document like any other.
     @discardableResult
+    func readChangelog() -> Bool {
+        guard let url = Bundle.main.url(forResource: "CHANGELOG", withExtension: "md"),
+              let text = try? String(contentsOf: url, encoding: .utf8) else { return false }
+        guard confirmDiscard() else { return false }
+        detach()
+        isPastedDocument = false
+        isNewNote = false
+        replaceSource(text)
+        isChangelog = true
+        scrollRequest = ScrollRequest(id: scrollRequest.id + 1, target: .top)
+        return true
+    }
+
+    @discardableResult
+
     func readPastedText(_ text: String) -> Bool {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
         guard text.utf8.count <= 5_000_000 else {

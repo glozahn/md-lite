@@ -355,6 +355,7 @@ struct DocumentColumn: View {
 
     private var footer: some View {
         HStack(spacing: 8) {
+            UpdateReadyButton(store: store)
             Image(systemName: "text.alignleft").font(.system(size: 9))
             Text("\(store.wordCount) " + store.t("palabras"))
             Text("·")
@@ -454,96 +455,156 @@ private struct FormatButtonStyle: ButtonStyle {
     }
 }
 
-/// Reading preferences shared by the toolbar popover and the Settings window (Command-comma).
+/// Reading preferences, compact, for the toolbar popover.
 struct QuickSettingsView: View {
     @ObservedObject var prefs: AppPreferences
     var store: ReaderStore?
-    var wide = false
 
     private func t(_ key: String) -> String { prefs.t(key) }
     private var target: ReaderStore? { store ?? DocumentRouter.shared.keyStore }
 
     var body: some View {
-
-        VStack(alignment: .leading, spacing: 15) {
-            quickPicker(t("Apariencia"), selection: $prefs.appearance, options: [
-                ("system", t("Sistema")), ("light", t("Claro")), ("dark", t("Oscuro"))
-            ])
-            quickPicker(t("Ancho del texto"), selection: $prefs.textWidth, options: [
-                ("narrow", t("Estrecho")), ("normal", t("Normal")), ("wide", t("Ancho")), ("full", t("Completo"))
-            ])
-            quickPicker(t("Idioma"), selection: $prefs.language, options: [
-                ("system", t("Sistema")), ("en", "English"), ("es", "Español")
-            ])
-            VStack(alignment: .leading, spacing: 8) {
-                Text(t("Color de acento")).font(.system(size: 12, weight: .medium))
-                HStack(spacing: 10) {
-                    ForEach(AccentChoice.allCases) { choice in
-                        Button { prefs.accent = choice.rawValue } label: {
-                            Circle().fill(Color(nsColor: choice.color))
-                                .frame(width: 20, height: 20)
-                                .overlay { if prefs.accent == choice.rawValue { Circle().stroke(.primary, lineWidth: 2) } }
-                        }
-                        .buttonStyle(.plain)
-                        .help(t(choice.label))
-                    }
-                }
-            }
-            if wide {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(t("Tamaño del texto")).font(.system(size: 12, weight: .medium))
-                    HStack {
-                        Slider(value: $prefs.fontSize, in: 12...28, step: 1)
-                        Text("\(Int(prefs.fontSize)) pt").font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary).frame(width: 44)
-                    }
-                }
-            }
-            Divider()
-            Toggle(t("Cargar siempre imágenes remotas"), isOn: $prefs.alwaysLoadRemoteImages).font(.system(size: 12))
-            Toggle(t("Buscar actualizaciones automáticamente"), isOn: $prefs.checkForUpdatesAutomatically).font(.system(size: 12))
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsControls.row(t("Apariencia")) { SettingsControls.appearance(prefs) }
+            SettingsControls.row(t("Ancho del texto")) { SettingsControls.textWidth(prefs) }
+            SettingsControls.row(t("Idioma")) { SettingsControls.language(prefs) }
+            SettingsControls.row(t("Color de acento")) { SettingsControls.accent(prefs) }
+            Divider().padding(.vertical, 2)
+            Toggle(t("Cargar siempre imágenes remotas"), isOn: $prefs.alwaysLoadRemoteImages)
+            Toggle(t("Actualizar automáticamente"), isOn: $prefs.automaticUpdates)
+            SettingsControls.defaultApp(prefs) { target?.showQuickSettings = false; target?.showDefaultAppGuide = true }
             HStack {
-                Image(systemName: prefs.defaultApp.isDefault == true ? "checkmark.circle.fill" : "doc.badge.gearshape")
-                    .foregroundStyle(prefs.defaultApp.isDefault == true ? Color.green : Color.secondary)
-                Text(prefs.defaultApp.isDefault == true ? t("MD Lite abre tus .md") : t("App para archivos .md"))
-                    .font(.system(size: 12))
+                Button(t("Atajos de teclado")) { target?.showQuickSettings = false; target?.showShortcuts = true }
                 Spacer()
-                if prefs.defaultApp.isDefault != true {
-                    Button(t("Configurar…")) { target?.showDefaultAppGuide = true }.controlSize(.small)
-                }
+                Button(t("Buscar actualizaciones")) { UpdateChecker.check(prefs, userInitiated: true) }
             }
-            HStack {
-                Button(t("Atajos de teclado")) { target?.showQuickSettings = false; target?.showShortcuts = true }.buttonStyle(.link)
-                Spacer()
-                Button(t("Buscar actualizaciones")) { UpdateChecker.check(prefs, userInitiated: true) }.buttonStyle(.link)
-            }
-            .font(.system(size: 11.5))
+            .buttonStyle(.link).font(.system(size: 11))
         }
+        .font(.system(size: 12))
         .toggleStyle(.switch)
         .controlSize(.small)
-        .padding(wide ? 24 : 18)
-        .frame(width: wide ? 420 : 320)
+        .padding(14)
+        .frame(width: 344)
         .tint(prefs.accentColor)
         .onAppear { prefs.refreshDefaultApp() }
     }
+}
 
-    @ViewBuilder
-    private func quickPicker(_ title: String, selection: Binding<String>, options: [(String, String)]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.system(size: 12, weight: .medium))
-            Picker(title, selection: selection) {
-                ForEach(options, id: \.0) { option in Text(option.1).tag(option.0) }
+/// The Settings window (⌘,): the same preferences in a grouped form, like System Settings.
+struct SettingsView: View {
+    @ObservedObject var prefs: AppPreferences
+    private func t(_ key: String) -> String { prefs.t(key) }
+
+    var body: some View {
+        Form {
+            Section {
+                LabeledContent(t("Apariencia")) { SettingsControls.appearance(prefs) }
+                LabeledContent(t("Color de acento")) { SettingsControls.accent(prefs) }
+                LabeledContent(t("Idioma")) { SettingsControls.language(prefs) }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            Section {
+                LabeledContent(t("Ancho del texto")) { SettingsControls.textWidth(prefs) }
+                LabeledContent(t("Tamaño del texto")) {
+                    HStack(spacing: 10) {
+                        Slider(value: $prefs.fontSize, in: 12...28, step: 1).frame(width: 150)
+                        Text("\(Int(prefs.fontSize)) pt").font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary).monospacedDigit()
+                    }
+                }
+                Toggle(t("Cargar siempre imágenes remotas"), isOn: $prefs.alwaysLoadRemoteImages)
+            } header: { Text(t("Lectura")) }
+            Section {
+                Toggle(t("Actualizar automáticamente"), isOn: $prefs.automaticUpdates)
+                SettingsControls.defaultApp(prefs) { DocumentRouter.shared.keyStore?.showDefaultAppGuide = true }
+                HStack {
+                    Button(t("Atajos de teclado")) { DocumentRouter.shared.keyStore?.showShortcuts = true }
+                    Spacer()
+                    Button(t("Buscar actualizaciones")) { UpdateChecker.check(prefs, userInitiated: true) }
+                }
+                .buttonStyle(.link).font(.system(size: 11.5))
+            } header: { Text(t("General")) }
         }
+        .formStyle(.grouped)
+        .toggleStyle(.switch)
+        .controlSize(.small)
+        .frame(width: 430, height: 430)
+        .tint(prefs.accentColor)
+        .environment(\.locale, Locale(identifier: prefs.resolvedLanguage))
+        .onAppear { prefs.refreshDefaultApp() }
     }
 }
 
-struct SettingsView: View {
-    @ObservedObject var prefs: AppPreferences
-    var body: some View {
-        QuickSettingsView(prefs: prefs, wide: true)
-            .environment(\.locale, Locale(identifier: prefs.resolvedLanguage))
+/// Controls shared by the popover and the Settings window.
+enum SettingsControls {
+    @MainActor @ViewBuilder
+    static func row<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: 10) {
+            Text(title).foregroundStyle(.secondary).lineLimit(1).fixedSize()
+            Spacer(minLength: 8)
+            content()
+        }
+    }
+
+    @MainActor
+    static func appearance(_ prefs: AppPreferences) -> some View {
+        picker(prefs, selection: Binding(get: { prefs.appearance }, set: { prefs.appearance = $0 }), width: 168, options: [
+            ("system", prefs.t("Sistema")), ("light", prefs.t("Claro")), ("dark", prefs.t("Oscuro"))
+        ])
+    }
+
+    @MainActor
+    static func textWidth(_ prefs: AppPreferences) -> some View {
+        picker(prefs, selection: Binding(get: { prefs.textWidth }, set: { prefs.textWidth = $0 }), width: 206, options: [
+            ("narrow", prefs.t("Estrecho")), ("normal", prefs.t("Normal")), ("wide", prefs.t("Ancho")), ("full", prefs.t("Completo"))
+        ])
+    }
+
+    @MainActor
+    static func language(_ prefs: AppPreferences) -> some View {
+        picker(prefs, selection: Binding(get: { prefs.language }, set: { prefs.language = $0 }), width: 168, options: [
+            ("system", prefs.t("Sistema")), ("en", "English"), ("es", "Español")
+        ])
+    }
+
+    @MainActor
+    static func accent(_ prefs: AppPreferences) -> some View {
+        HStack(spacing: 8) {
+            ForEach(AccentChoice.allCases) { choice in
+                Button { prefs.accent = choice.rawValue } label: {
+                    let selected = prefs.accent == choice.rawValue
+                    Circle().fill(Color(nsColor: choice.color)).frame(width: 14, height: 14)
+                        .padding(2)
+                        .overlay { if selected { Circle().strokeBorder(Color(nsColor: choice.color), lineWidth: 1.5) } }
+                }
+                .buttonStyle(.plain)
+                .help(prefs.t(choice.label))
+                .accessibilityLabel(prefs.t(choice.label))
+            }
+        }
+    }
+
+    @MainActor @ViewBuilder
+    static func defaultApp(_ prefs: AppPreferences, configure: @escaping () -> Void) -> some View {
+        let isDefault = prefs.defaultApp.isDefault == true
+        HStack(spacing: 6) {
+            Image(systemName: isDefault ? "checkmark.circle.fill" : "doc.badge.gearshape")
+                .foregroundStyle(isDefault ? Color.green : Color.secondary)
+            Text(isDefault ? prefs.t("MD Lite abre tus .md") : prefs.t("App para archivos .md"))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            if !isDefault { Button(prefs.t("Configurar…"), action: configure).controlSize(.small) }
+        }
+        .font(.system(size: 11.5))
+    }
+
+    @MainActor
+    private static func picker(_ prefs: AppPreferences, selection: Binding<String>, width: CGFloat, options: [(String, String)]) -> some View {
+        Picker("", selection: selection) {
+            ForEach(options, id: \.0) { option in Text(option.1).tag(option.0) }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(width: width)
     }
 }
 
@@ -655,6 +716,30 @@ private struct FocusExitButton: View {
     }
 }
 
+
+/// Shown once an update has been downloaded and checked: one click restarts into it.
+private struct UpdateReadyButton: View {
+    @ObservedObject var store: ReaderStore
+    @ObservedObject private var updater = Updater.shared
+
+    var body: some View {
+        if let ready = updater.ready {
+            Button { updater.install(relaunch: true) } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "arrow.down.circle.fill")
+                    Text(String(format: store.t("Actualizar a %@"), ready.version))
+                }
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(store.accentColor)
+                .padding(.horizontal, 7).padding(.vertical, 2)
+                .background(store.accentColor.opacity(0.12), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .help(store.t("Reinicia MD Lite y vuelve a abrir tus documentos. Si no, se instala al salir."))
+            Text("·")
+        }
+    }
+}
 
 /// An AppKit label: the percentage changes while scrolling, and a SwiftUI text would redraw the whole window.
 private struct ProgressLabel: NSViewRepresentable {

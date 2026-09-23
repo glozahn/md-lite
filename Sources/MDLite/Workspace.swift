@@ -107,20 +107,26 @@ final class Workbench: ObservableObject {
     @Published private(set) var isScanningWorkspace = false
     /// Focus mode belongs to the window: it hides the sidebar, the other pane and every bar.
     @Published var focusMode = false
+    /// A window kept above other apps, for reading while you work somewhere else.
+    @Published var floating = false {
+        didSet { window?.level = floating ? .floating : .normal }
+    }
     @Published var splitRatio: CGFloat = UserDefaults.standard.object(forKey: "paneRatio") as? CGFloat ?? 0.5
     weak var window: NSWindow?
     private var observers: [NSObjectProtocol] = []
 
     init(target: DocumentTarget) {
-        let first = ReaderStore()
+        // A tab dragged out of another window keeps its document, undo history and scroll position.
+        let adopted = DocumentRouter.shared.takeAdoption()
+        let first = adopted ?? ReaderStore()
         // Only the first window greets with the welcome page; later ones start empty.
-        if !DocumentRouter.shared.workbenches.isEmpty, target.url == nil { first.makeBlank() }
+        if adopted == nil, !DocumentRouter.shared.workbenches.isEmpty, target.url == nil { first.makeBlank() }
         let pane = Pane(first)
         panes = [pane]
         focusedPaneID = pane.id
         first.workbench = self
         if let folder = target.workspace, FileManager.default.fileExists(atPath: folder.path) { setWorkspace(folder) }
-        if let url = target.url { first.open(url, quiet: true) }
+        if adopted == nil, let url = target.url { first.open(url, quiet: true) }
     }
 
     var focusedPane: Pane { panes.first { $0.id == focusedPaneID } ?? panes[0] }
@@ -132,6 +138,7 @@ final class Workbench: ObservableObject {
         guard self.window !== window else { return }
         self.window = window
         window.tabbingMode = .disallowed
+        window.level = floating ? .floating : .normal
         observers.append(NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.allStores.forEach { $0.preserveUnsavedWork() } }
         })
@@ -333,6 +340,26 @@ final class DocumentRouter {
         workbenches.first { $0.window?.isKeyWindow == true } ?? workbenches.first { $0.window?.isMainWindow == true } ?? workbenches.first
     }
     var keyStore: ReaderStore? { keyBench?.focusedStore }
+    /// Every saved document currently open, so an update can reopen them after it restarts the app.
+    func openFileURLs() -> [URL] { all.compactMap(\.fileURL).reduce(into: []) { if !$0.contains($1) { $0.append($1) } } }
+
+    /// A tab waiting for the window that is being created to take it over.
+    private var adoption: ReaderStore?
+
+    /// Moves `store` out of its window and into a new one, keeping its undo history and position.
+    func detach(_ store: ReaderStore) {
+        guard let bench = store.workbench else { return }
+        guard bench.allStores.count > 1 || workbenches.count > 1 else { return }
+        bench.release(store)
+        adoption = store
+        openWindow?(DocumentTarget(workspace: bench.workspace))
+        DispatchQueue.main.async { [weak self] in self?.adoption = nil }
+    }
+
+    func takeAdoption() -> ReaderStore? {
+        defer { adoption = nil }
+        return adoption
+    }
 
     func register(_ bench: Workbench) {
         benches.add(bench)

@@ -11,6 +11,7 @@ enum UpdateChecker {
         let version: String
         let page: URL
         let download: URL?
+        let checksum: URL?
         let notes: String
     }
 
@@ -32,24 +33,32 @@ enum UpdateChecker {
     }
 
     static func checkAutomaticallyIfNeeded(_ store: AppPreferences) {
-        guard store.checkForUpdatesAutomatically else { return }
+        guard store.automaticUpdates else { return }
+        // When MD Lite can replace itself it does the whole thing quietly.
+        if Updater.shared.canInstall { Updater.shared.checkInBackground(store); return }
         let last = UserDefaults.standard.double(forKey: "lastUpdateCheck")
         guard Date().timeIntervalSince1970 - last > 86_400 else { return }
         check(store, userInitiated: false)
     }
 
     static func check(_ store: AppPreferences, userInitiated: Bool) {
-        guard !checking, let url = URL(string: "https://api.github.com/repos/\(repository)/releases/latest") else { return }
+        if userInitiated, Updater.shared.checkNow(store) { return }
+        guard !checking else { return }
         checking = true
-        var request = URLRequest(url: url, timeoutInterval: 15)
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        let session = URLSession(configuration: .ephemeral)
         Task {
-            let release = try? await fetch(request, session: session)
+            let release = try? await latest()
             checking = false
             UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "lastUpdateCheck")
             present(release, store: store, userInitiated: userInitiated)
         }
+    }
+
+    /// The newest published release, or nil when GitHub says nothing useful.
+    static func latest() async throws -> Release? {
+        guard let url = URL(string: "https://api.github.com/repos/\(repository)/releases/latest") else { return nil }
+        var request = URLRequest(url: url, timeoutInterval: 15)
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        return try await fetch(request, session: URLSession(configuration: .ephemeral))
     }
 
     private static func fetch(_ request: URLRequest, session: URLSession) async throws -> Release? {
@@ -62,7 +71,10 @@ enum UpdateChecker {
         let architecture = ProcessInfo.processInfo.machineArchitecture
         let dmgs = assets.compactMap { $0["browser_download_url"] as? String }.filter { $0.hasSuffix(".dmg") }
         let download = (dmgs.first { $0.contains(architecture) } ?? dmgs.first).flatMap(URL.init(string:))
-        return Release(version: tag, page: page, download: download, notes: json["body"] as? String ?? "")
+        let checksums = assets.compactMap { $0["browser_download_url"] as? String }.filter { $0.hasSuffix(".sha256") }
+        let checksum = (download?.lastPathComponent).flatMap { name in checksums.first { $0.hasSuffix(name + ".sha256") } }
+            .flatMap(URL.init(string:))
+        return Release(version: tag, page: page, download: download, checksum: checksum, notes: json["body"] as? String ?? "")
     }
 
     private static func present(_ release: Release?, store: AppPreferences, userInitiated: Bool) {
