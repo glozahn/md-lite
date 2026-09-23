@@ -228,7 +228,7 @@ struct DocumentColumn: View {
 
     /// File name; hover shows the full path, a click shows where it lives.
     private var titleButton: some View {
-        Button { showPath.toggle() } label: {
+        Button { showPath = true } label: {
             HStack(spacing: 7) {
                 Image(systemName: store.isNewNote ? "square.and.pencil" : "doc.text").foregroundStyle(.tertiary)
                 Text(store.title).font(.system(size: 12.5, weight: .medium)).lineLimit(1)
@@ -243,7 +243,9 @@ struct DocumentColumn: View {
         }
         .buttonStyle(.plain)
         .help(store.fileURL?.path ?? store.t("Este documento aún no está guardado."))
-        .popover(isPresented: $showPath, arrowEdge: .bottom) { PathPopover(store: store).onDisappear { showPath = false } }
+        .popover(isPresented: $showPath, arrowEdge: .bottom) {
+            PathPopover(store: store).onDisappear { showPath = false }
+        }
         .onDrag { store.dragProvider() }
     }
 
@@ -270,7 +272,9 @@ struct DocumentColumn: View {
             .buttonStyle(.plain)
             .help(store.t("Dejar una estrella en GitHub"))
             .accessibilityLabel(store.t("Dejar una estrella en GitHub"))
-            Button { store.showQuickSettings.toggle() } label: {
+            // Only ever opens: the click that closes the popover is swallowed by the dismissal,
+            // so a toggle here would leave the button doing nothing every other time.
+            Button { store.showQuickSettings = true } label: {
                 Image(systemName: "slider.horizontal.3").font(.system(size: 13.5)).frame(width: 30, height: 28)
             }
             .buttonStyle(.plain)
