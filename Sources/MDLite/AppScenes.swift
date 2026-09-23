@@ -72,6 +72,10 @@ struct AppCommands: Commands {
     @Environment(\.openSettings) private var openSettings
 
     private func t(_ key: String) -> String { prefs.t(key) }
+    /// SwiftUI stops handing over the focused objects in some states (a sheet, a menu opened from
+    /// the menu bar while the window is not key), so fall back to the window in front.
+    private var target: Workbench? { bench ?? DocumentRouter.shared.keyBench }
+    private var document: ReaderStore? { store ?? DocumentRouter.shared.keyStore }
 
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
@@ -170,23 +174,21 @@ struct AppCommands: Commands {
             .keyboardShortcut("s", modifiers: [.command, .control])
         }
         CommandGroup(before: .windowList) {
-            Button(t("Pestaña siguiente")) { bench?.cycleTab(1) }.keyboardShortcut("]", modifiers: [.command, .shift]).disabled(bench == nil)
-            Button(t("Pestaña anterior")) { bench?.cycleTab(-1) }.keyboardShortcut("[", modifiers: [.command, .shift]).disabled(bench == nil)
+            Button(t("Pestaña siguiente")) { target?.cycleTab(1) }.keyboardShortcut("]", modifiers: [.command, .shift]).disabled(target == nil)
+            Button(t("Pestaña anterior")) { target?.cycleTab(-1) }.keyboardShortcut("[", modifiers: [.command, .shift]).disabled(target == nil)
             Divider()
             Button(t("Mover la pestaña a una ventana nueva")) {
-                if let store = bench?.focusedStore ?? DocumentRouter.shared.keyStore { DocumentRouter.shared.detach(store) }
-            }.keyboardShortcut("n", modifiers: [.command, .control])
-            Toggle(t("Mantener encima"), isOn: Binding(
-                get: { (bench ?? DocumentRouter.shared.keyBench)?.floating ?? false },
-                set: { (bench ?? DocumentRouter.shared.keyBench)?.floating = $0 }
-            ))
+                if let document = target?.focusedStore ?? document { DocumentRouter.shared.detach(document) }
+            }.keyboardShortcut("n", modifiers: [.command, .control]).disabled(target == nil)
+            Toggle(t("Mantener encima"), isOn: Binding(get: { target?.floating ?? false }, set: { target?.floating = $0 }))
+                .disabled(target == nil)
             Divider()
-            Button(t("Cerrar panel")) { if let bench { bench.closePane(bench.focusedPane) } }
-                .keyboardShortcut("w", modifiers: [.command, .option]).disabled((bench?.panes.count ?? 1) < 2)
-            Button(t("Mover al panel izquierdo")) { if let store { bench?.place(store: store, side: .left) } }
-                .keyboardShortcut(.leftArrow, modifiers: [.command, .control]).disabled(bench == nil)
-            Button(t("Mover al panel derecho")) { if let store { bench?.place(store: store, side: .right) } }
-                .keyboardShortcut(.rightArrow, modifiers: [.command, .control]).disabled(bench == nil)
+            Button(t("Cerrar panel")) { if let target { target.closePane(target.focusedPane) } }
+                .keyboardShortcut("w", modifiers: [.command, .option]).disabled((target?.panes.count ?? 1) < 2)
+            Button(t("Mover al panel izquierdo")) { if let target { target.place(store: target.focusedStore, side: .left) } }
+                .keyboardShortcut(.leftArrow, modifiers: [.command, .control]).disabled(target == nil)
+            Button(t("Mover al panel derecho")) { if let target { target.place(store: target.focusedStore, side: .right) } }
+                .keyboardShortcut(.rightArrow, modifiers: [.command, .control]).disabled(target == nil)
             Divider()
         }
         CommandGroup(before: .toolbar) {
@@ -260,3 +262,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated { Updater.shared.installOnQuit() }
     }
 }
+

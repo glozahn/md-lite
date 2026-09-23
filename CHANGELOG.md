@@ -2,6 +2,36 @@
 
 Every release of MD Lite. The newest is at the top; each one is also on [GitHub](https://github.com/glozahn/md-lite/releases).
 
+## 0.3.5 — 2026-09-23
+
+MD Lite now keeps itself up to date, tabs can leave the window, and the changelog lives inside the app.
+
+### Updates install themselves
+
+MD Lite checks GitHub Releases, downloads the disk image in the background, and installs it after three checks: the download matches its published SHA-256, it is signed by the same developer as the copy you are running, and Gatekeeper confirms Apple notarized it. A quiet button in the footer restarts into the new version and reopens your documents; ignore it and the update lands when you quit. Settings has a switch to turn it off.
+
+### A tab can become a window
+
+**⌃⌘N** (or *Move to New Window* in a tab's menu) moves the tab into its own window, keeping its undo history and reading position. *Keep on Top* in the Window menu leaves a window floating above your other apps while you read.
+
+### What's New, inside the app
+
+*Help ▸ What's New* opens the full changelog as a document, with its own outline. It also opens once after an update installs.
+
+### Lighter settings
+
+The toolbar popover and the Settings window were heavy: big controls, lots of air. Both are compact now — small controls in labelled rows, and a grouped form in the window, like System Settings.
+
+### Also
+
+- Clear the recent files list from the sidebar, or remove a single entry.
+- The typography button answers every click. The click that closes a popover never reaches the button under it, so toggling there left the button doing nothing every other time.
+- Windows no longer come back empty after a relaunch: MD Lite decides what opens, not window restoration.
+
+### Windows and Linux
+
+Same version number, with no new features in this release.
+
 ## 0.3.4 — 2026-09-22
 
 A small fix release for 0.3.3.

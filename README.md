@@ -56,11 +56,11 @@ MD Lite keeps itself up to date. It checks GitHub Releases, downloads the disk i
 
 ## Screenshots
 
-![MD Lite in light appearance](docs/screenshots/light.png)
+![Tabs, the outline and a document in light appearance](docs/screenshots/light.png)
 
-![MD Lite in dark appearance](docs/screenshots/dark.png)
+![Two documents side by side in dark appearance](docs/screenshots/dark.png)
 
-![Native Markdown table rendering](docs/screenshots/tables.png)
+![Tables, task lists, highlighted code and a Mermaid diagram](docs/screenshots/diagrams.png)
 
 ## Download
 
