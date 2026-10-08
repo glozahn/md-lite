@@ -84,10 +84,10 @@ MD Lite for Linux is a native GTK 4 and libadwaita app in [`linux/`](linux), wri
 - Files save themselves as you type and reload when another app changes them. Remote images stay blocked until you click **Show**.
 - Export to HTML and PDF, print, Spanish and English, light and dark appearance, and the system accent color.
 
-On Fedora, install the RPM from a release (or build it yourself, see [Build from source](#build-from-source)):
+On Fedora, install the RPM from the [0.3.6 release](https://github.com/glozahn/md-lite/releases/tag/v0.3.6) (or build it yourself, see [Build from source](#build-from-source)):
 
 ```sh
-sudo dnf install ./md-lite-0.3.5-1.fc44.x86_64.rpm
+sudo dnf install ./md-lite-0.3.6-1.fc44.x86_64.rpm
 ```
 
 The shortcuts are the ones below with **Ctrl** in place of **⌘**; **F9** shows or hides the sidebar and **F11** enters focus mode.

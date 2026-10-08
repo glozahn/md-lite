@@ -525,7 +525,7 @@ dependencies = [
 
 [[package]]
 name = "md-lite"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "fancy-regex",
  "glib",

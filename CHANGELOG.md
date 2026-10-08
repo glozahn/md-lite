@@ -2,7 +2,9 @@
 
 Every release of MD Lite. The newest is at the top; each one is also on [GitHub](https://github.com/glozahn/md-lite/releases).
 
-## Unreleased
+## 0.3.6 — 2026-10-07
+
+A release for Linux: the native GTK 4 app gets one of its own.
 
 ### MD Lite for Linux, natively
 
@@ -10,7 +12,15 @@ MD Lite now has a native Linux app, built with GTK 4 and libadwaita and written 
 
 It reads and edits the same way. Reading, Editor, Source and Split modes; markers that hide until you reach their line; lists and quotes that continue on Return; tabs that move between two panes or out into a window of their own; working folders, favorites and recent files; autosave, reload when a file changes, export to HTML and PDF. Mermaid diagrams are drawn offline in a hidden WebKit view, and remote images wait for you to click **Show**.
 
-Fedora users can install it as an RPM; `linux/` holds the source, a Makefile and the package spec.
+Fedora users can install it as an RPM; `linux/` holds the source, a Makefile and the package spec. GitHub Actions builds the package for every release.
+
+### Also
+
+- Checking a task in the reading view no longer freezes the Linux app. The reader removed the checkbox under the pointer while GTK was still handling the click.
+
+### macOS, Windows and Linux (Tauri)
+
+No macOS build in this release; 0.3.5 is still the current one. The Windows and Tauri Linux installers carry the new version number, with no new features.
 
 ## 0.3.5 — 2026-09-23
 
