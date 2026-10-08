@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// What a window (tab) shows. Codable so macOS can restore tabs on relaunch.
@@ -127,6 +128,8 @@ final class Workbench: ObservableObject {
         first.workbench = self
         if let folder = target.workspace, FileManager.default.fileExists(atPath: folder.path) { setWorkspace(folder) }
         if adopted == nil, let url = target.url { first.open(url, quiet: true) }
+        // At launch, windows come back with the tabs they had when MD Lite quit.
+        if adopted == nil, target.url == nil, let saved = Session.nextWindow() { restore(saved) }
     }
 
     var focusedPane: Pane { panes.first { $0.id == focusedPaneID } ?? panes[0] }
@@ -140,7 +143,10 @@ final class Workbench: ObservableObject {
         window.tabbingMode = .disallowed
         window.level = floating ? .floating : .normal
         observers.append(NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.allStores.forEach { $0.preserveUnsavedWork() } }
+            MainActor.assumeIsolated {
+                self?.allStores.forEach { $0.preserveUnsavedWork() }
+                Session.scheduleSave()
+            }
         })
         DocumentRouter.shared.register(self)
     }
@@ -376,8 +382,11 @@ final class DocumentRouter {
 
     func register(_ bench: Workbench) {
         benches.add(bench)
+        sessionWatchers.append(bench.objectWillChange.sink { _ in Task { @MainActor in Session.scheduleSave() } })
         flush()
     }
+
+    private var sessionWatchers: [AnyCancellable] = []
 
     func enqueue(_ urls: [URL]) {
         pending += urls
@@ -450,5 +459,39 @@ struct WindowAccessor: NSViewRepresentable {
 
     func updateNSView(_ view: NSView, context: Context) {
         if let window = view.window { onWindow(window) }
+    }
+}
+
+extension Workbench {
+    /// Rebuilds a window as it was: its folder, its panes and tabs, each tab in its mode.
+    func restore(_ saved: Session.WindowState) {
+        if let folder = saved.workspace, FileManager.default.fileExists(atPath: folder) {
+            setWorkspace(URL(fileURLWithPath: folder, isDirectory: true))
+        }
+        var restored: [Pane] = []
+        for savedPane in saved.panes {
+            var stores: [ReaderStore] = []
+            for tab in savedPane.tabs {
+                let store = ReaderStore()
+                store.workbench = self
+                if let path = tab.path, FileManager.default.fileExists(atPath: path) {
+                    store.open(URL(fileURLWithPath: path), quiet: true)
+                } else if let link = tab.link, let url = URL(string: link) {
+                    store.openRemote(url)
+                } else {
+                    continue
+                }
+                if let mode = DocumentMode(rawValue: tab.mode) { store.setMode(mode) }
+                stores.append(store)
+            }
+            guard let first = stores.first else { continue }
+            let pane = Pane(first)
+            pane.tabs = stores
+            pane.selectedID = stores[min(max(0, savedPane.selected), stores.count - 1)].id
+            restored.append(pane)
+        }
+        guard !restored.isEmpty else { return }
+        panes = restored
+        focusedPaneID = restored[min(max(0, saved.focusedPane), restored.count - 1)].id
     }
 }

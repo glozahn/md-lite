@@ -55,7 +55,7 @@ struct WorkbenchScene: View {
             .frame(minWidth: 760, minHeight: 480)
             .environment(\.locale, Locale(identifier: bench.focusedStore.resolvedLanguage))
             .preferredColorScheme(bench.focusedStore.prefs.colorScheme)
-            .navigationTitle(bench.focusedStore.title)
+            .modifier(FocusedTitle(store: bench.focusedStore))
             .focusedSceneObject(bench)
             .focusedSceneObject(bench.focusedStore)
             .background(WindowAccessor { window in
@@ -63,7 +63,11 @@ struct WorkbenchScene: View {
                 window.isRestorable = false
                 bench.attach(window)
             })
-            .onAppear { DocumentRouter.shared.openWindow = { openWindow(value: $0) } }
+            .onAppear {
+                DocumentRouter.shared.openWindow = { openWindow(value: $0) }
+                Session.reopenRemainingWindows()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { Session.finishStartup() }
+            }
     }
 }
 
@@ -267,7 +271,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     func applicationWillTerminate(_ notification: Notification) {
-        MainActor.assumeIsolated { Updater.shared.installOnQuit() }
+        MainActor.assumeIsolated {
+            Session.save()
+            ReadingPositions.flush()
+            Updater.shared.installOnQuit()
+        }
     }
 }
 
+
+
+/// The window takes the title of the document in front, and follows it when it changes
+/// (a web page finishing its download, a note saved under a name).
+private struct FocusedTitle: ViewModifier {
+    @ObservedObject var store: ReaderStore
+    func body(content: Content) -> some View { content.navigationTitle(store.title) }
+}

@@ -273,6 +273,17 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
             visibleText.scrollCharacterToTop(0)
             // A new tab gets its size, and the bars their height, a moment later.
             DispatchQueue.main.async { [weak self] in self?.visibleText.scrollCharacterToTop(0) }
+        case .source(let offset):
+            let go = { [weak self] in
+                guard let self else { return }
+                if self.store.mode == .read || self.store.mode == .split {
+                    let target = self.store.kind.isMarkdown ? self.store.rendered.renderedOffset(forSource: offset) : offset
+                    self.reader.scrollCharacterToTop(target)
+                }
+                if self.store.mode != .read { self.editor.scrollCharacterToTop(offset) }
+            }
+            go()
+            DispatchQueue.main.async(execute: go)
         case .bottom:
             // A new tab has no size yet on the first pass; scroll once it has been laid out.
             DispatchQueue.main.async { [weak self] in
@@ -409,6 +420,12 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
     }
 
     private func updateSpy() {
+        if let file = store.fileURL, store.kind != .log {
+            // Markdown maps the rendered text back to its source; other files read as they are.
+            let offset = store.mode == .read ? (store.kind.isMarkdown ? sourceOffsetAtReaderTop() : reader.topVisibleCharacter())
+                                             : editor.topVisibleCharacter()
+            ReadingPositions.remember(offset, for: file)
+        }
         let outline = store.rendered.outline
         guard !outline.isEmpty else { store.setCurrentHeading(nil, progress: progress()); return }
         let heading: Int?

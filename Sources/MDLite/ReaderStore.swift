@@ -5,6 +5,8 @@ import UniformTypeIdentifiers
 
 enum ScrollTarget: Equatable {
     case none, top, bottom
+    /// A place in the source, as remembered for a file.
+    case source(Int)
     case heading(OutlineItem)
 }
 
@@ -279,7 +281,8 @@ final class ReaderStore: ObservableObject {
             if kind.isReadOnly || (!kind.isMarkdown && mode == .edit) { mode = .read }
             followsEnd = true
             replaceSource(text)
-            scrollRequest = ScrollRequest(id: scrollRequest.id + 1, target: kind == .log ? .bottom : .top)
+            let remembered = ReadingPositions.offset(for: url).map { ScrollTarget.source($0) }
+            scrollRequest = ScrollRequest(id: scrollRequest.id + 1, target: kind == .log ? .bottom : (remembered ?? .top))
             prefs.addRecent(url)
             watch(url)
         } catch {
