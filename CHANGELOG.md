@@ -2,6 +2,11 @@
 
 Every release of MD Lite. The newest is at the top; each one is also on [GitHub](https://github.com/glozahn/md-lite/releases).
 
+## 0.4.2 — 2026-10-08
+
+- **Check for Updates** opens a small window: it shows the check, a progress bar while the new version downloads, the signature check, and *Restart and Update* — or says MD Lite is up to date.
+- The MD Lite menu shows *Settings…* once (macOS 26 listed it twice).
+
 ## 0.4.1 — 2026-10-08
 
 - A link opened in a new tab names its site in the tab and the window while it downloads, instead of *Welcome*.
