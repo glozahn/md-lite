@@ -132,6 +132,7 @@ final class ReaderStore: ObservableObject {
 
     var title: String {
         if let fileURL { return fileURL.deletingPathExtension().lastPathComponent }
+        if isFeed, let name = rendered.outline.first?.title { return name }
         if let remoteURL {
             let name = remoteURL.deletingPathExtension().lastPathComponent
             return isFeed || name.isEmpty || name == "/" || name == "raw" ? (remoteURL.host ?? "Web") : name

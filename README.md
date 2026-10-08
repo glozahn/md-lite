@@ -48,6 +48,13 @@ MD Lite also opens the plain-text files that live next to your notes, each shown
 
 Working folders list these files too, each with its own icon, and Finder offers MD Lite under *Open With* without taking over as their default app.
 
+## From the web, and to the terminal
+
+- **Open Link** (**⌥⌘O**), pasting a link, or dragging one from your browser reads a document from the web: a README on GitHub, a gist, or any Markdown or text file. GitHub pages are swapped for their raw files, images and links keep working, and the sidebar shows the site instead of *Local reading*. Web documents are read-only; *Save a Copy* keeps one.
+- **Feeds** — an RSS or Atom link opens as a document: each entry with its date, a plain-text summary and its link.
+- **Open in Terminal** (**⌃⌘T**) opens the document's folder in your terminal (Terminal, iTerm, Warp, Ghostty…, chosen in Settings).
+- **Run** (**⇧⌘R**) runs a `.sh` file, and shell code blocks get a ▶︎ next to *Copy*. MD Lite always asks first and shows the command; the output streams into a panel under the document. Nothing from the web can be run.
+
 ## Tabs, panes, and working folders
 
 Each window has its own tab strip. **⌘T** opens a clean tab you can drop a file on, or open, create, or paste a document into; every tab keeps its own undo history and scroll position. Drag a tab or a file from Finder or the sidebar onto a document to see where it will land: the left or right half opens it in a side-by-side pane, the middle opens it as a tab there. **⇧⌘]** / **⇧⌘[** switch tabs, **⌃⌘←** / **⌃⌘→** move a tab between panes, and **⌥⌘W** closes a pane, moving its tabs to the other one.
@@ -137,6 +144,7 @@ Press **⌘/** inside the app to see them all.
 | Increase / reset / decrease text | ⌘+ · ⌘0 · ⌘− |
 | Paste and read clipboard Markdown | ⇧⌘V |
 | Reload from disk · Print | ⌘R · ⌘P |
+| Open Link · Open in Terminal · Run | ⌥⌘O · ⌃⌘T · ⇧⌘R |
 | Keyboard shortcuts | ⌘/ |
 
 ## Build from source

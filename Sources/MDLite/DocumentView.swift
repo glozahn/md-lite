@@ -155,6 +155,8 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
             let atTop = scroll.contentView.bounds.minY <= -scroll.contentInsets.top + 1
             scroll.contentInsets = NSEdgeInsets(top: store.topInset, left: 0, bottom: 0, right: 0)
             scroll.scrollerInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+            // The clip view only accepts the new top once the scroll view has re-tiled.
+            scroll.tile()
             if atTop {
                 scroll.contentView.scroll(to: NSPoint(x: 0, y: -store.topInset))
                 scroll.reflectScrolledClipView(scroll.contentView)
@@ -269,6 +271,8 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
         switch request.target {
         case .top:
             visibleText.scrollCharacterToTop(0)
+            // A new tab gets its size, and the bars their height, a moment later.
+            DispatchQueue.main.async { [weak self] in self?.visibleText.scrollCharacterToTop(0) }
         case .bottom:
             // A new tab has no size yet on the first pass; scroll once it has been laid out.
             DispatchQueue.main.async { [weak self] in

@@ -60,9 +60,16 @@ final class ScriptRunner: ObservableObject {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = String(format: prefs.t("¿Ejecutar %@?"), title)
-        let preview = script.split(separator: "\n", omittingEmptySubsequences: false).prefix(12).joined(separator: "\n")
-        alert.informativeText = prefs.t("Se ejecuta con tu usuario en") + " " + folder.path + "\n\n" + preview
-            + (script.split(separator: "\n").count > 12 ? "\n…" : "")
+        alert.informativeText = prefs.t("Se ejecuta con tu usuario en") + " " + folder.path
+        let lines = script.split(separator: "\n", omittingEmptySubsequences: false)
+        let preview = lines.prefix(14).joined(separator: "\n") + (lines.count > 14 ? "\n…" : "")
+        let code = NSTextField(wrappingLabelWithString: preview)
+        code.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        code.textColor = .secondaryLabelColor
+        code.isSelectable = true
+        code.preferredMaxLayoutWidth = 440
+        code.frame = NSRect(x: 0, y: 0, width: 440, height: code.fittingSize.height)
+        alert.accessoryView = code
         alert.addButton(withTitle: prefs.t("Ejecutar"))
         alert.addButton(withTitle: prefs.t("Cancelar"))
         return alert.runModal() == .alertFirstButtonReturn

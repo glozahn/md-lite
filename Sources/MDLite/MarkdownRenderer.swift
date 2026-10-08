@@ -126,6 +126,9 @@ final class MarkdownRenderer {
             while body.hasSuffix("\n") { body.removeLast() }
             // Highlighting is regex work; past a few hundred KB it would stall opening the file.
             let highlight = body.utf16.count < 400_000 ? language : nil
+            // TextKit drops the space above the very first paragraph, which is where the block keeps
+            // its header (language, Copy, Run). A one-point line in front gives it room.
+            append("\u{200B}\n", [.font: NSFont.systemFont(ofSize: 1), .foregroundColor: NSColor.clear])
             renderCodeBox(body, language: highlight, label: language, Context())
         case .text, .log, .markdown:
             let monospaced = kind == .log

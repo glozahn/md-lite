@@ -100,7 +100,7 @@ final class FeedReader: NSObject, XMLParserDelegate {
             let title = literal(entry.title).isEmpty ? "—" : literal(entry.title)
             let link = entry.link.trimmingCharacters(in: .whitespacesAndNewlines)
             lines.append("## " + (link.isEmpty ? title : "[\(title)](\(link))"))
-            if !entry.date.isEmpty { lines += ["", "<sub>" + clean(entry.date) + "</sub>"] }
+            if !entry.date.isEmpty { lines += ["", "<sub>" + readableDate(entry.date) + "</sub>"] }
             let summary = literal(stripTags(entry.summary))
             if !summary.isEmpty { lines += ["", summary.count > 420 ? String(summary.prefix(420)) + "…" : summary] }
             lines.append("")
@@ -149,6 +149,25 @@ final class FeedReader: NSObject, XMLParserDelegate {
             }
         }
         text = ""
+    }
+
+    /// RSS dates (RFC 822) and Atom dates (ISO 8601) shown the way the Mac shows dates.
+    static func readableDate(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        var date = iso.date(from: trimmed)
+        if date == nil { iso.formatOptions = [.withInternetDateTime]; date = iso.date(from: trimmed) }
+        if date == nil {
+            let rfc = DateFormatter()
+            rfc.locale = Locale(identifier: "en_US_POSIX")
+            for format in ["EEE, dd MMM yyyy HH:mm:ss zzz", "EEE, dd MMM yyyy HH:mm:ss Z", "dd MMM yyyy HH:mm:ss zzz"] {
+                rfc.dateFormat = format
+                if let parsed = rfc.date(from: trimmed) { date = parsed; break }
+            }
+        }
+        guard let date else { return clean(trimmed) }
+        return date.formatted(date: .abbreviated, time: .omitted)
     }
 
     /// Feed text shown as text: no HTML and no link syntax sneaks in from someone else's feed.

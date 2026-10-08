@@ -50,6 +50,9 @@ final class WebSourcesTests: XCTestCase {
         let markdown = try XCTUnwrap(FeedReader.markdown(from: Data(atom.utf8), source: URL(string: "https://blog.example/atom")!))
         XCTAssertTrue(markdown.contains("## [Hello](https://blog.example/hello)"))
         XCTAssertTrue(markdown.contains("First post"))
-        XCTAssertTrue(markdown.contains("2026-10-01T09:00:00Z"))
+        XCTAssertTrue(markdown.contains("2026"))
+        XCTAssertFalse(markdown.contains("T09:00:00Z"))
+        XCTAssertFalse(FeedReader.readableDate("Tue, 07 Oct 2026 10:00:00 GMT").contains("GMT"))
+        XCTAssertEqual(FeedReader.readableDate("someday"), "someday")
     }
 }
