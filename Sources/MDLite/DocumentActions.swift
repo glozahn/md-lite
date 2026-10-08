@@ -117,6 +117,7 @@ enum DocumentActions {
         let width = info.paperSize.width - info.leftMargin - info.rightMargin
         renderer.maxImageWidth = width - 20
         renderer.mermaid = { code in MermaidRenderer.shared.result(for: code, dark: false) }
+        renderer.math = { tex, display in MathRenderer.shared.result(for: tex, display: display, dark: false, size: 12.5) }
         let text = NSMutableAttributedString(attributedString: renderer.render(source).text)
         // Link styling is screen-only in NSTextView; bake it in so links read as links on paper.
         text.enumerateAttribute(.link, in: NSRange(location: 0, length: text.length)) { value, range, _ in

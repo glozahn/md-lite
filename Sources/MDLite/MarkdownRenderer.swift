@@ -42,6 +42,8 @@ final class MarkdownRenderer {
     var remoteImage: (URL) -> NSImage? = { _ in nil }
     /// Returns a rendered Mermaid diagram, a failure, or nil while it is still being drawn.
     var mermaid: ((String) -> MermaidResult?)?
+    /// Typesets TeX: nil while pending, `.some(nil)` when it cannot be read.
+    var math: ((String, Bool) -> MathImage??)?
 
     private struct Context {
         var indent: CGFloat = 0
@@ -256,7 +258,12 @@ final class MarkdownRenderer {
             renderTable(table, context)
             mark(node, from: start)
         case let paragraph as Paragraph:
-            renderParagraph(paragraph, context)
+            // A paragraph that is only `$$…$$` is display math; read it from the source, before escapes.
+            if math != nil, let range = map.range(paragraph.range), let tex = MathSyntax.displayBlock(source.substring(with: range)) {
+                renderDisplayMath(tex, context)
+            } else {
+                renderParagraph(paragraph, context)
+            }
             mark(node, from: start)
         default:
             for child in node.children { block(child, context) }
@@ -304,6 +311,10 @@ final class MarkdownRenderer {
         let language = info?.split(whereSeparator: { $0 == " " || $0 == "{" || $0 == "," }).first.map(String.init)
         var text = code
         if text.hasSuffix("\n") { text.removeLast() }
+        if language?.lowercased() == "math", math != nil {
+            renderDisplayMath(text, context)
+            return
+        }
         if language?.lowercased() == "mermaid", let mermaid {
             switch mermaid(text) {
             case .image(let image)?: renderDiagram(image, context)
@@ -353,6 +364,34 @@ final class MarkdownRenderer {
         append(body)
         decorations.removeLast()
         decoration.range = NSRange(location: start, length: output.length - start)
+    }
+
+    private func appendInlineMath(_ tex: String, _ attributes: Attributes) {
+        if case .some(.some(let typeset)) = math?(tex, false) {
+            appendAttachment(MDImageCell(image: typeset.image, size: typeset.image.size, baseline: typeset.descent), attributes)
+        } else {
+            // While it is typeset (or when TeX cannot be read) the formula shows as written.
+            var plain = attributes
+            plain[.font] = NSFont.monospacedSystemFont(ofSize: ((attributes[.font] as? NSFont)?.pointSize ?? size) * 0.86, weight: .regular)
+            plain[.foregroundColor] = NSColor.secondaryLabelColor
+            append("$" + tex + "$", plain)
+        }
+    }
+
+    private func renderDisplayMath(_ tex: String, _ context: Context) {
+        switch math?(tex, true) {
+        case .some(.some(let typeset)):
+            let style = paragraphStyle(context)
+            style.alignment = .center
+            style.paragraphSpacingBefore = size * 0.3
+            style.paragraphSpacing = size * 0.9
+            appendAttachment(MDImageCell(image: typeset.image, size: typeset.image.size), [.paragraphStyle: style])
+            append("\n", [.paragraphStyle: style, .font: bodyFont])
+        case .some(.none):
+            renderCodeBox(tex, language: nil, label: "math", context, note: localized("No se pudo leer esta fórmula."))
+        case .none:
+            renderCodeBox(tex, language: nil, label: "math · " + localized("componiendo…"), context)
+        }
     }
 
     private func renderDiagram(_ image: NSImage, _ context: Context) {
@@ -605,7 +644,15 @@ final class MarkdownRenderer {
         case let text as Markdown.Text:
             guard hiddenDepth == 0 else { return }
             let styled = htmlInline(a)
-            if linkDepth == 0, styled[.link] == nil { appendAutolinked(text.string, styled) } else { append(text.string, styled) }
+            let spans = math == nil ? [] : MathSyntax.inlineSpans(in: text.string)
+            var rest = text.string[...]
+            for span in spans {
+                let before = String(text.string[rest.startIndex..<span.range.lowerBound])
+                if linkDepth == 0, styled[.link] == nil { appendAutolinked(before, styled) } else { append(before, styled) }
+                appendInlineMath(span.tex, styled)
+                rest = text.string[span.range.upperBound...]
+            }
+            if linkDepth == 0, styled[.link] == nil { appendAutolinked(String(rest), styled) } else { append(String(rest), styled) }
         case is Strong:
             a[.font] = NSFontManager.shared.convert(a[.font] as? NSFont ?? bodyFont, toHaveTrait: .boldFontMask)
             inlineChildren(node, a)

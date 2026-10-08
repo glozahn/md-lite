@@ -56,3 +56,20 @@ final class WebSourcesTests: XCTestCase {
         XCTAssertEqual(FeedReader.readableDate("someday"), "someday")
     }
 }
+
+final class MathSyntaxTests: XCTestCase {
+    func testInlineMath() {
+        func tex(_ text: String) -> [String] { MathSyntax.inlineSpans(in: text).map(\.tex) }
+        XCTAssertEqual(tex("Energy is $E=mc^2$ and $\\alpha$."), ["E=mc^2", "\\alpha"])
+        XCTAssertEqual(tex("It costs $5 and $10 today."), [])          // money, not math
+        XCTAssertEqual(tex("Spaces $ x $ are not math"), [])
+        XCTAssertEqual(tex("Escaped \\$x$ stays text"), [])
+        XCTAssertEqual(tex("no dollars here"), [])
+    }
+
+    func testDisplayMath() {
+        XCTAssertEqual(MathSyntax.displayBlock("$$\n\\int_0^1 x\\,dx\n$$"), "\\int_0^1 x\\,dx")
+        XCTAssertNil(MathSyntax.displayBlock("Text $$a$$ more"))
+        XCTAssertNil(MathSyntax.displayBlock("$$a$$ and $$b$$"))
+    }
+}

@@ -90,6 +90,24 @@ final class ReaderStore: ObservableObject {
     @Published var showDefaultAppGuide = false
     @Published var showQuickSettings = false
     @Published var showQuickOpen = false
+    @Published var showFolderSearch = false
+    @Published var showHistory = false
+
+    /// Puts an earlier version back as the document's text and saves it.
+    func restoreVersion(_ text: String) {
+        guard !isReadOnly else { return }
+        source = text
+        contentVersion += 1
+        didReplaceDocument = false
+        isDirty = true
+        save()
+        renderNow()
+    }
+
+    /// Brings a place in the source to the top, in whichever mode the tab is in.
+    func jump(toSource offset: Int) {
+        scrollRequest = ScrollRequest(id: scrollRequest.id + 1, target: .source(offset))
+    }
     @Published private(set) var remoteImagesAllowed: Bool
     @Published private(set) var isDark = false
     let id = UUID()
@@ -177,6 +195,7 @@ final class ReaderStore: ObservableObject {
         prefs = preferences
         remoteImagesAllowed = preferences.alwaysLoadRemoteImages
         MermaidRenderer.shared.onUpdate = { NotificationCenter.default.post(name: .mermaidDidRender, object: nil) }
+        MathRenderer.shared.onUpdate = { NotificationCenter.default.post(name: .mermaidDidRender, object: nil) }
         preferences.objectWillChange
             .sink { [weak self] _ in
                 self?.objectWillChange.send()
@@ -185,7 +204,8 @@ final class ReaderStore: ObservableObject {
             .store(in: &subscriptions)
         NotificationCenter.default.publisher(for: .mermaidDidRender)
             .sink { [weak self] _ in
-                guard let self, self.source.contains("mermaid") else { return }
+                // Diagrams and formulas arrive later; only documents that have some redraw.
+                guard let self, self.kind.isMarkdown, self.source.contains("mermaid") || self.source.contains("$") || self.source.contains("```math") else { return }
                 self.renderNow()
             }
             .store(in: &subscriptions)
@@ -570,6 +590,8 @@ final class ReaderStore: ObservableObject {
         renderer.remoteImage = { [weak self] url in self?.cachedRemoteImage(url) }
         let dark = isDark
         renderer.mermaid = { code in MermaidRenderer.shared.result(for: code, dark: dark) }
+        let mathSize = fontSize
+        renderer.math = { tex, display in MathRenderer.shared.result(for: tex, display: display, dark: dark, size: mathSize) }
         rendered = kind.isMarkdown ? renderer.render(source) : renderer.render(file: source, kind: kind)
         renderVersion += 1
         wordCount = source.split(whereSeparator: { $0.isWhitespace }).count
@@ -651,6 +673,8 @@ final class ReaderStore: ObservableObject {
     }
 
     private func write(to url: URL) -> Bool {
+        // The text being replaced is kept first, so any save can be undone from Version History.
+        History.snapshot(before: source, at: url)
         do {
             try source.write(to: url, atomically: true, encoding: .utf8)
             lastWritten = source

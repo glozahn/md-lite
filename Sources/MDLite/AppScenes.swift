@@ -119,6 +119,9 @@ struct AppCommands: Commands {
             Button(t("Abrir carpeta…")) { (store ?? DocumentRouter.shared.keyStore)?.openWorkspacePanel() }.keyboardShortcut("o", modifiers: [.command, .shift])
             Button(t("Abrir enlace…")) { document?.promptForLink() }.keyboardShortcut("o", modifiers: [.command, .option])
             Button(t("Abrir rápido…")) { document?.showQuickOpen = true }.keyboardShortcut("p", modifiers: [.command, .option])
+            Button(t("Buscar en la carpeta…")) { document?.showFolderSearch = true }.keyboardShortcut("f", modifiers: [.command, .option, .shift])
+            Button(t("Historial de versiones…")) { document?.showHistory = true }
+                .disabled(document?.fileURL == nil || document?.isReadOnly == true)
             Divider()
             Button(t("Abrir en Terminal")) { document?.openInTerminal() }.keyboardShortcut("t", modifiers: [.command, .control])
             Button(t("Ejecutar")) { document?.runScript() }.keyboardShortcut("r", modifiers: [.command, .shift])

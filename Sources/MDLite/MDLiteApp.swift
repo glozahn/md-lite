@@ -168,6 +168,8 @@ struct DocumentColumn: View {
         .sheet(isPresented: $store.showPasteEditor) { PasteEditor(store: store) }
         .sheet(isPresented: $store.showShortcuts) { ShortcutsView(store: store) }
         .sheet(isPresented: $store.showQuickOpen) { QuickOpenView(store: store, bench: bench) }
+        .sheet(isPresented: $store.showFolderSearch) { FolderSearchView(store: store, bench: bench) }
+        .sheet(isPresented: $store.showHistory) { HistoryView(store: store) }
         .sheet(isPresented: $store.showDefaultAppGuide) { DefaultAppGuide(store: store) }
         .alert(store.t("No se pudo leer el archivo"), isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) {
             Button(store.t("Entendido"), role: .cancel) { store.error = nil }
