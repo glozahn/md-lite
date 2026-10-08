@@ -118,6 +118,8 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
             scroll.borderType = .noBorder
             scroll.automaticallyAdjustsContentInsets = false
             scroll.contentInsets = NSEdgeInsetsZero
+            // The find bar would hide under the floating toolbar; keep it at the bottom.
+            scroll.findBarPosition = .belowContent
             scroll.documentView = text
             scroll.contentView.postsBoundsChangedNotifications = true
             NotificationCenter.default.addObserver(self, selector: #selector(scrolled), name: NSView.boundsDidChangeNotification, object: scroll.contentView)
@@ -147,6 +149,16 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
     func sync() {
         reader.columnWidth = store.columnWidth
         editor.columnWidth = store.mode == .source || store.mode == .split ? store.columnWidth + 60 : store.columnWidth
+        // The document runs under the floating bars; its first line waits below them.
+        for scroll in [readerScroll, editorScroll] where scroll.contentInsets.top != store.topInset {
+            let atTop = scroll.contentView.bounds.minY <= -scroll.contentInsets.top + 1
+            scroll.contentInsets = NSEdgeInsets(top: store.topInset, left: 0, bottom: 0, right: 0)
+            scroll.scrollerInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+            if atTop {
+                scroll.contentView.scroll(to: NSPoint(x: 0, y: -store.topInset))
+                scroll.reflectScrolledClipView(scroll.contentView)
+            }
+        }
         let compact: CGFloat = store.mode == .split ? 22 : 36
         reader.minimumInset = compact
         editor.minimumInset = compact
@@ -407,9 +419,10 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
 
     private func progress() -> Double {
         let scroll = store.mode == .read ? readerScroll : editorScroll
-        let total = (scroll.documentView?.frame.height ?? 0) - scroll.contentView.bounds.height
+        let top = scroll.contentInsets.top
+        let total = (scroll.documentView?.frame.height ?? 0) + top - scroll.contentView.bounds.height
         guard total > 1 else { return 1 }
-        return min(1, max(0, scroll.contentView.bounds.minY / total))
+        return min(1, max(0, (scroll.contentView.bounds.minY + top) / total))
     }
 
     // MARK: DocumentEditing

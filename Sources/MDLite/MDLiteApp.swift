@@ -122,21 +122,11 @@ struct DocumentColumn: View {
     var body: some View {
 
         VStack(spacing: 0) {
-            if store.focusMode {
-                Color.clear.frame(height: 28)
-            } else {
-                toolbar
-                if store.mode != .read && store.kind.isMarkdown {
-                    FormatBar(store: store)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-                Rectangle().fill(.primary.opacity(0.07)).frame(height: 1)
-                if store.mode == .read, store.blockedRemoteImages > 0 { remoteBanner }
-            }
+            ZStack(alignment: .top) {
             GeometryReader { geometry in
                 Group {
                     if store.isBlank {
-                        EmptyTabView(store: store, bench: bench)
+                        EmptyTabView(store: store, bench: bench).padding(.top, store.topInset)
                     } else {
                         DocumentView(store: store).id(store.id)
                     }
@@ -146,8 +136,24 @@ struct DocumentColumn: View {
                     .onDrop(of: [.mdliteTab, .fileURL], delegate: PaneDropDelegate(pane: pane, bench: bench, tracker: drop,
                                                                                   width: geometry.size.width, allowSides: bench.panes.count == 1))
             }
+            // The bars float on Liquid Glass and the document scrolls underneath them.
+            if !store.focusMode {
+                // Scroll edge effect: text fades as it slides under the bars, as in Safari and Notes.
+                LinearGradient(stops: [.init(color: paper, location: 0), .init(color: paper.opacity(0.82), location: 0.55),
+                                       .init(color: paper.opacity(0), location: 1)],
+                               startPoint: .top, endPoint: .bottom)
+                    .frame(height: store.topInset + 16)
+                    .allowsHitTesting(false)
+                chrome
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                        if abs(store.topInset - height) > 0.5 { store.topInset = height }
+                    }
+                    .transition(.opacity)
+            }
+            }
             if !store.focusMode { footer }
         }
+        .onChange(of: store.focusMode) { _, focused in if focused { store.topInset = 28 } }
         .background(paper)
         .simultaneousGesture(TapGesture().onEnded { bench.focus(pane: pane) })
         .overlay(alignment: .topTrailing) { if store.focusMode { FocusExitButton(store: store) } }
@@ -165,6 +171,24 @@ struct DocumentColumn: View {
             Button(store.t("Entendido"), role: .cancel) { store.error = nil }
         } message: { Text(store.error ?? "") }
         .task(id: store.id) { store.setDarkAppearance(colorScheme == .dark) }
+    }
+
+    private var chrome: some View {
+        GlassGroup {
+            VStack(spacing: 6) {
+                toolbar
+                if store.mode != .read && store.kind.isMarkdown {
+                    FormatBar(store: store)
+                        .chromeGlass(cornerRadius: 12)
+                        .padding(.horizontal, 12)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+                if store.mode == .read, store.blockedRemoteImages > 0 {
+                    remoteBanner.chromeGlass(cornerRadius: 12).padding(.horizontal, 12)
+                }
+            }
+            .padding(.bottom, 8)
+        }
     }
 
     @ViewBuilder private func dropOverlay(in size: CGSize) -> some View {
@@ -202,27 +226,38 @@ struct DocumentColumn: View {
 
     /// One bar per pane: the document's title, or its tabs once there are several, then the controls.
     private var toolbar: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             if showsSidebarToggle {
                 if !showSidebar { Spacer().frame(width: 62) }
                 toolButton("sidebar.left", label: (showSidebar ? store.t("Ocultar barra lateral") : store.t("Mostrar barra lateral")) + " · ⌃⌘S") {
                     if store.focusMode { store.focusMode = false } else { store.sidebarVisible.toggle() }
                 }
+                .padding(2)
+                .chromeGlass(cornerRadius: 16)
             }
             if showTabRow {
                 TabStrip(pane: pane, bench: bench, isFocused: isFocused)
+                    .padding(.horizontal, 3)
+                    .chromeGlass(cornerRadius: 16)
             } else {
                 titleButton
+                    .padding(.horizontal, 4).padding(.vertical, 1)
+                    .chromeGlass(cornerRadius: 16)
                 Spacer(minLength: 8)
             }
             if !store.isBlank {
-                if !store.kind.isReadOnly { modeSwitcher }
-                toolButton("arrow.up.left.and.arrow.down.right", label: store.t("Modo enfoque") + " · ⇧⌘F") { store.toggleFocus() }
-                toolButton("magnifyingglass", label: store.t("Buscar · ⌘F")) { store.find(.showFindInterface) }
+                if !store.kind.isReadOnly { modeSwitcher.chromeGlass(cornerRadius: 16) }
+                HStack(spacing: 0) {
+                    toolButton("arrow.up.left.and.arrow.down.right", label: store.t("Modo enfoque") + " · ⇧⌘F") { store.toggleFocus() }
+                    toolButton("magnifyingglass", label: store.t("Buscar · ⌘F")) { store.find(.showFindInterface) }
+                }
+                .padding(2)
+                .chromeGlass(cornerRadius: 16)
             }
             if isLastPane { globalControls }
         }
-        .padding(.leading, showsSidebarToggle ? 20 : 12).padding(.trailing, 16).frame(height: 56)
+        .padding(.leading, showsSidebarToggle ? 16 : 10).padding(.trailing, 12).padding(.top, 10)
+        .frame(height: 52, alignment: .bottom)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { barWidth = $0 }
     }
 
@@ -265,12 +300,14 @@ struct DocumentColumn: View {
                     Text("A+").font(.system(size: 14, weight: .medium)).frame(width: 30, height: 28)
                 }.disabled(store.fontSize >= 28).help(store.t("Aumentar texto") + " · ⌘+")
                     .accessibilityLabel(store.t("Aumentar texto"))
-            }.buttonStyle(.plain).readerGlass(cornerRadius: 11, interactive: true)
+            }.buttonStyle(.plain).padding(.horizontal, 2).padding(.vertical, 2).chromeGlass(cornerRadius: 16)
             Link(destination: URL(string: "https://github.com/glozahn/md-lite")!) {
                 Image(systemName: "star.fill").font(.system(size: 12, weight: .medium))
                     .foregroundStyle(store.accentColor).frame(width: 26, height: 28)
             }
             .buttonStyle(.plain)
+            .padding(2)
+            .chromeGlass(cornerRadius: 16)
             .help(store.t("Dejar una estrella en GitHub"))
             .accessibilityLabel(store.t("Dejar una estrella en GitHub"))
             // Only ever opens: the click that closes the popover is swallowed by the dismissal,
@@ -279,8 +316,8 @@ struct DocumentColumn: View {
                 Image(systemName: "slider.horizontal.3").font(.system(size: 13.5)).frame(width: 30, height: 28)
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, 3)
-            .readerGlass(cornerRadius: 11, interactive: true)
+            .padding(2)
+            .chromeGlass(cornerRadius: 16)
             .popover(isPresented: $store.showQuickSettings, arrowEdge: .top) {
                 QuickSettingsView(prefs: store.prefs, store: store)
                     // AppKit can close a popover on its own (when the window stops being active, say)
@@ -313,7 +350,6 @@ struct DocumentColumn: View {
             modeButton(.split, symbol: "rectangle.split.2x1", label: store.t("Dividida"), keys: "⌘4", showLabel: labels, currentLabel: currentLabel)
         }
         .padding(3)
-        .background(.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 11))
     }
 
     private func modeButton(_ mode: DocumentMode, symbol: String, label: String, keys: String, showLabel: Bool, currentLabel: Bool) -> some View {
@@ -356,8 +392,7 @@ struct DocumentColumn: View {
             Spacer()
             Button(store.t("Mostrar")) { store.allowRemoteImages() }.controlSize(.small)
         }
-        .padding(.horizontal, 22).padding(.vertical, 7)
-        .background(.primary.opacity(0.03))
+        .padding(.horizontal, 14).padding(.vertical, 7)
     }
 
     private var footer: some View {
@@ -696,6 +731,18 @@ extension View {
         }
     }
 
+    /// Floating controls: Liquid Glass on macOS 26, a translucent material before it.
+    @ViewBuilder
+    func chromeGlass(cornerRadius: CGFloat) -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        } else {
+            self.background(.regularMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .overlay { RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).strokeBorder(Color.primary.opacity(0.08)) }
+                .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
+        }
+    }
+
     @ViewBuilder
     func readerGlass(cornerRadius: CGFloat, interactive: Bool = false) -> some View {
         if #available(macOS 26.0, *) {
@@ -860,5 +907,18 @@ private struct RecentRowStyle: ButtonStyle {
         configuration.label
             .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(configuration.isPressed ? 0.08 : (hovering ? 0.045 : 0))))
             .onHover { hovering = $0 }
+    }
+}
+
+
+/// Groups glass shapes so macOS 26 renders them together and blends neighbours; a plain stack before it.
+struct GlassGroup<Content: View>: View {
+    @ViewBuilder var content: Content
+    var body: some View {
+        if #available(macOS 26.0, *) {
+            GlassEffectContainer(spacing: 8) { content }
+        } else {
+            content
+        }
     }
 }

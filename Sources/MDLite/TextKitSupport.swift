@@ -420,9 +420,14 @@ final class MDTextView: NSTextView {
     }
 
     /// Character index of the first line visible at the top of the scroll view.
+    /// Height covered by the floating bars at the top of the scroll view.
+    var coveredTop: CGFloat { enclosingScrollView?.contentInsets.top ?? 0 }
+
     func topVisibleCharacter() -> Int {
         guard let layout = layoutManager, let container = textContainer, let storage = textStorage, storage.length > 0 else { return 0 }
-        let point = NSPoint(x: 8, y: visibleRect.minY - textContainerOrigin.y + 12)
+        // The first line actually readable sits just below the floating bars.
+        let clipTop = enclosingScrollView?.contentView.bounds.minY ?? visibleRect.minY
+        let point = NSPoint(x: 8, y: max(0, clipTop + coveredTop) - textContainerOrigin.y + 12)
         let glyph = layout.glyphIndex(for: point, in: container)
         return min(storage.length - 1, layout.characterIndexForGlyph(at: glyph))
     }
@@ -433,8 +438,9 @@ final class MDTextView: NSTextView {
               let storage = textStorage else { return }
         let clamped = max(0, min(index, max(0, storage.length - 1)))
         // The very top is the top of the view: a block that starts the document keeps its header.
+        let top = coveredTop
         guard storage.length > 0, index > 0 else {
-            scroll.contentView.scroll(to: .zero)
+            scroll.contentView.scroll(to: NSPoint(x: 0, y: -top))
             scroll.reflectScrolledClipView(scroll.contentView)
             return
         }
@@ -442,8 +448,8 @@ final class MDTextView: NSTextView {
         layout.ensureLayout(forGlyphRange: NSRange(location: 0, length: min(layout.numberOfGlyphs, glyph + 1)))
         _ = container
         let line = layout.lineFragmentUsedRect(forGlyphAt: glyph, effectiveRange: nil)
-        let maxY = max(0, frame.height - scroll.contentView.bounds.height)
-        let y = min(maxY, max(0, line.minY + textContainerOrigin.y - offset - (index == 0 ? 40 : 0)))
+        let maxY = max(-top, frame.height - scroll.contentView.bounds.height)
+        let y = min(maxY, max(-top, line.minY + textContainerOrigin.y - offset - top))
         scroll.contentView.scroll(to: NSPoint(x: 0, y: y))
         scroll.reflectScrolledClipView(scroll.contentView)
     }

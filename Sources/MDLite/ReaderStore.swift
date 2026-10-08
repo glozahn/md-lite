@@ -141,6 +141,8 @@ final class ReaderStore: ObservableObject {
     @Published private(set) var lineCount = 0
     /// A log keeps showing its newest lines while the reader stays at the end, like `tail -f`.
     var followsEnd = true
+    /// How much of the top of the document the floating bars cover; the text starts below it.
+    @Published var topInset: CGFloat = 60
     /// A tab that only shows the welcome page (or an untouched note) can take the next document.
     var canReuseForNewDocument: Bool { !isDirty && (isBlank || isWelcome || (isNewNote && source.count < 40)) }
 
