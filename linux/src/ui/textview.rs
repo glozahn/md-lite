@@ -45,6 +45,7 @@ mod imp {
         pub on_task: RefCell<Option<Box<dyn Fn(usize)>>>,
         pub on_copy: RefCell<Option<Box<dyn Fn()>>>,
         pub last_width: Cell<i32>,
+        pub embeds: RefCell<Vec<gtk::Widget>>,
     }
 
     #[glib::object_subclass]
@@ -116,6 +117,22 @@ impl Default for MdTextView {
 impl MdTextView {
     pub fn new() -> Self {
         glib::Object::new()
+    }
+
+    /// Embeds a widget at an anchor, remembering it so it can be removed before the text goes.
+    pub fn add_embed(&self, widget: &gtk::Widget, anchor: &gtk::TextChildAnchor) {
+        self.add_child_at_anchor(widget, anchor);
+        self.imp().embeds.borrow_mut().push(widget.clone());
+    }
+
+    /// Removes every embedded widget while the buffer is still intact. Deleting text that holds
+    /// a widget under the pointer makes GTK read the selection mid-deletion and crash.
+    pub fn clear_embeds(&self) {
+        for widget in self.imp().embeds.borrow_mut().drain(..) {
+            if widget.parent().as_ref() == Some(self.upcast_ref::<gtk::Widget>()) {
+                self.remove(&widget);
+            }
+        }
     }
 
     pub fn available(&self) -> Rc<Cell<i32>> {

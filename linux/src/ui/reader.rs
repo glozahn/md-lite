@@ -28,6 +28,7 @@ pub struct Hooks {
 pub fn show(view: &MdTextView, tags: &TagCache, rendered: &Rendered, hooks: &Hooks) {
     let buffer = view.buffer();
     let palette = tags.palette();
+    view.clear_embeds();
     buffer.set_text("");
     let map = CharMap::new(&rendered.text);
     let mut iter = buffer.start_iter();
@@ -39,7 +40,7 @@ pub fn show(view: &MdTextView, tags: &TagCache, rendered: &Rendered, hooks: &Hoo
         }
         let anchor = buffer.create_child_anchor(&mut iter);
         if let Some(widget) = build(embed, rendered, &palette, hooks, &available) {
-            view.add_child_at_anchor(&widget, &anchor);
+            view.add_embed(&widget, &anchor);
         }
         cursor = offset + 1;
     }
@@ -119,7 +120,13 @@ fn build(embed: &Embed, rendered: &Rendered, palette: &Palette, hooks: &Hooks, a
                 Some(offset) => {
                     let offset = *offset;
                     let on_task = hooks.on_task.clone();
-                    check.connect_toggled(move |_| on_task(offset));
+                    // Toggling rebuilds the reader, which destroys this checkbox. Wait until GTK
+                    // has finished handling the click; removing a widget inside its own click
+                    // handler freezes the app.
+                    check.connect_toggled(move |_| {
+                        let on_task = on_task.clone();
+                        glib::idle_add_local_once(move || on_task(offset));
+                    });
                 }
                 None => check.set_sensitive(false),
             }

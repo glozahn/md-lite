@@ -336,6 +336,18 @@ fn debug_screenshot(app: &adw::Application) {
                 page.export_pdf_to(&gio::File::for_path(pdf).uri());
             }
         }
+        if let (Ok(_), Some(bench)) = (std::env::var("MDLITE_CLICK_TASK"), active_bench(&app)) {
+            if let Some(page) = bench.current() {
+                let mut child = page.reader().first_child();
+                while let Some(widget) = child {
+                    if let Ok(check) = widget.clone().downcast::<gtk::CheckButton>() {
+                        check.set_active(!check.is_active());
+                        break;
+                    }
+                    child = widget.next_sibling();
+                }
+            }
+        }
         if let (Ok(text), Some(bench)) = (std::env::var("MDLITE_TYPE"), active_bench(&app)) {
             if let Some(page) = bench.current() {
                 page.debug_type(&text.replace("\\n", "\n").replace("\\t", "\t"));
