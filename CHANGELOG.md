@@ -29,6 +29,7 @@ With many tabs open the names get short. The list button at the end of the tab s
 
 - **Quick Look** — press Space on a Markdown file in Finder to read it formatted, with its images.
 - **Apple silicon and Intel** — one universal app for every Mac that runs macOS 14 or later.
+- **Open with MD Lite** — Settings lists Markdown, text, logs, data and scripts with the app that opens each one now, and makes MD Lite their app in one click (text and logs are suggested; macOS asks to confirm).
 
 ## 0.3.8 — 2026-10-08
 

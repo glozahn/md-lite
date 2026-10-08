@@ -47,7 +47,7 @@ MD Lite also opens the plain-text files that live next to your notes, each shown
 - **Text** — `.txt` exactly as written, nothing interpreted as Markdown.
 - **Logs** — `.log` files are read-only and follow new lines as they arrive, like `tail -f`; very large logs open at their last 2 MB.
 
-Working folders list these files too, each with its own icon, and Finder offers MD Lite under *Open With* without taking over as their default app.
+Working folders list these files too, each with its own icon, and Finder offers MD Lite under *Open With* without taking over as their default app. To make MD Lite their app, use *Open with MD Lite* in Settings: it shows which app opens Markdown, text, logs, data and scripts today and switches any of them in one click.
 
 ## From the web, and to the terminal
 

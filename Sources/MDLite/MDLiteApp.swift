@@ -582,7 +582,6 @@ struct SettingsView: View {
                         ForEach(TerminalLauncher.installed) { app in Text(app.name).tag(app.id) }
                     }
                 }
-                SettingsControls.defaultApp(prefs) { DocumentRouter.shared.keyStore?.showDefaultAppGuide = true }
                 HStack {
                     Button(t("Atajos de teclado")) { DocumentRouter.shared.keyStore?.showShortcuts = true }
                     Spacer()
@@ -590,11 +589,12 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.link).font(.system(size: 11.5))
             } header: { Text(t("General")) }
+            FileAssociationsSection(prefs: prefs)
         }
         .formStyle(.grouped)
         .toggleStyle(.switch)
         .controlSize(.small)
-        .frame(width: 430, height: 430)
+        .frame(width: 430, height: 520)
         .tint(prefs.accentColor)
         .environment(\.locale, Locale(identifier: prefs.resolvedLanguage))
         .onAppear { prefs.refreshDefaultApp() }
