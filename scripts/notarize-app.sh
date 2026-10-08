@@ -23,7 +23,7 @@ if [ ! -f "$KEY_PATH" ]; then
 fi
 
 echo "Signing with: $MDLITE_SIGNING_IDENTITY"
-codesign --force --deep --options runtime --timestamp --sign "$MDLITE_SIGNING_IDENTITY" "$APP"
+./scripts/sign-app.sh "$APP"
 ./scripts/build-dmg.sh
 DMG="$(ls -t dist/MD-Lite-*.dmg | head -1)"
 

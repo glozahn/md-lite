@@ -8,7 +8,9 @@ fi
 
 APP="dist/MD Lite.app"
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
-ARCH=$(uname -m)
+# "universal" when the app runs on both Apple silicon and Intel.
+ARCHS=$(lipo -archs "$APP/Contents/MacOS/MDLite")
+case "$ARCHS" in *arm64*x86_64*|*x86_64*arm64*) ARCH=universal ;; *) ARCH=$ARCHS ;; esac
 DMG="dist/MD-Lite-${VERSION}-${ARCH}.dmg"
 STAGING=$(mktemp -d "${TMPDIR:-/tmp}/mdlite-dmg.XXXXXX")
 trap 'rm -rf "$STAGING"' EXIT
@@ -27,7 +29,7 @@ cat > "$STAGING/README.md" <<INSTALL
 2. Eject this disk image.
 3. Open MD Lite from Applications.
 
-Requires macOS 14 or later on Apple silicon. This release is signed with a Developer ID certificate and notarized by Apple.
+Requires macOS 14 or later, on Apple silicon or Intel. This release is signed with a Developer ID certificate and notarized by Apple.
 
 ## Start
 

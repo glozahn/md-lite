@@ -70,7 +70,7 @@ enum UpdateChecker {
         let assets = json["assets"] as? [[String: Any]] ?? []
         let architecture = ProcessInfo.processInfo.machineArchitecture
         let dmgs = assets.compactMap { $0["browser_download_url"] as? String }.filter { $0.hasSuffix(".dmg") }
-        let download = (dmgs.first { $0.contains(architecture) } ?? dmgs.first).flatMap(URL.init(string:))
+        let download = (dmgs.first { $0.contains("universal") } ?? dmgs.first { $0.contains(architecture) } ?? dmgs.first).flatMap(URL.init(string:))
         let checksums = assets.compactMap { $0["browser_download_url"] as? String }.filter { $0.hasSuffix(".sha256") }
         let checksum = (download?.lastPathComponent).flatMap { name in checksums.first { $0.hasSuffix(name + ".sha256") } }
             .flatMap(URL.init(string:))
