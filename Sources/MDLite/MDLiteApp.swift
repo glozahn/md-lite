@@ -255,6 +255,9 @@ struct DocumentColumn: View {
                     if store.isShellScript {
                         toolButton("play.fill", label: store.t("Ejecutar") + " · ⇧⌘R") { store.runScript() }
                     }
+                    if store.hasSlides {
+                        toolButton("play.rectangle", label: store.t("Presentar") + " · ⌥⌘↩") { Presentation.start(store) }
+                    }
                     toolButton("arrow.up.left.and.arrow.down.right", label: store.t("Modo enfoque") + " · ⇧⌘F") { store.toggleFocus() }
                     toolButton("magnifyingglass", label: store.t("Buscar · ⌘F")) { store.find(.showFindInterface) }
                 }

@@ -216,6 +216,9 @@ struct AppCommands: Commands {
             Divider()
             Button(store?.focusMode == true ? t("Salir del modo enfoque") : t("Modo enfoque")) { store?.toggleFocus() }
             .keyboardShortcut("f", modifiers: [.command, .shift])
+            Button(t("Presentar")) { if let document { Presentation.start(document) } }
+                .keyboardShortcut(.return, modifiers: [.command, .option])
+                .disabled(document?.kind.isMarkdown != true)
             Divider()
             Button(t("Aumentar texto")) { prefs.fontSize = min(28, prefs.fontSize + 1) }.keyboardShortcut("+")
             Button(t("Reducir texto")) { prefs.fontSize = max(12, prefs.fontSize - 1) }.keyboardShortcut("-")

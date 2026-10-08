@@ -14,6 +14,8 @@ protocol DocumentEditing: AnyObject {
     func find(_ action: NSTextFinder.Action)
     /// Inserts text at the editor's cursor, as typing would (undoable).
     func insert(_ text: String)
+    /// Where in the Markdown source the visible part of the document starts.
+    func sourceOffsetAtTop() -> Int
 }
 
 /// Lays out the reader, the editor, or both side by side with a draggable divider.
@@ -258,6 +260,10 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
     private func syncReaderToEditor() {
         guard store.mode == .split else { return }
         reader.scrollCharacterToTop(store.rendered.renderedOffset(forSource: editor.topVisibleCharacter()), offset: 14)
+    }
+
+    func sourceOffsetAtTop() -> Int {
+        store.mode == .read ? sourceOffsetAtReaderTop() : editor.topVisibleCharacter()
     }
 
     private func sourceOffsetAtReaderTop() -> Int {

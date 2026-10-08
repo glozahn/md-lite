@@ -175,6 +175,8 @@ final class ReaderStore: ObservableObject {
     var isReadOnly: Bool { kind.isReadOnly || remoteURL != nil }
     /// Lines in the source, for the footer of files that are not prose.
     @Published private(set) var lineCount = 0
+    /// The document has `---` slide breaks, so the toolbar offers Present.
+    @Published private(set) var hasSlides = false
     /// A log keeps showing its newest lines while the reader stays at the end, like `tail -f`.
     var followsEnd = true
     /// How much of the top of the document the floating bars cover; the text starts below it.
@@ -596,6 +598,8 @@ final class ReaderStore: ObservableObject {
         renderVersion += 1
         wordCount = source.split(whereSeparator: { $0.isWhitespace }).count
         lineCount = source.isEmpty ? 0 : source.reduce(into: 1) { if $1 == "\n" { $0 += 1 } }
+        let slides = kind.isMarkdown && source.contains("\n---") && Slides.split(source).count > 1
+        if hasSlides != slides { hasSlides = slides }
         if remoteImagesAllowed { loadRemoteImages() }
     }
 

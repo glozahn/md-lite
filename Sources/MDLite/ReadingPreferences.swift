@@ -122,6 +122,7 @@ enum ReaderLanguage {
         "componiendo…": "typesetting…",
         "Guarda el documento antes de añadir imágenes; se guardan junto a él.": "Save the document before adding images; they are kept next to it.",
         "Abrir rápido…": "Quick Open…",
+        "Presentar": "Present",
         "Abrir rápido: escribe parte del nombre": "Quick Open: type part of a name",
         "Abre una carpeta de trabajo para buscar en todos sus archivos.": "Open a working folder to search all of its files.",
         "Nada coincide.": "Nothing matches.",
