@@ -67,17 +67,47 @@ struct Sidebar: View {
             .sidebarCard(palette, radius: 14)
             .padding(.top, 12).padding(.horizontal, 12).padding(.bottom, 10)
 
-            Button(action: store.openPanel) {
-                HStack(spacing: 9) {
-                    Image(systemName: "plus").font(.system(size: 12, weight: .medium))
-                    Text(store.t("Abrir documento")).font(.system(size: 12.5, weight: .medium))
-                    Spacer()
-                    Text("⌘O").font(.system(size: 10.5)).foregroundStyle(palette.faint)
+            // One click opens a file; the arrow offers the other places a document can come from.
+            HStack(spacing: 0) {
+                Button(action: store.openPanel) {
+                    HStack(spacing: 9) {
+                        Image(systemName: "plus").font(.system(size: 12, weight: .medium))
+                        Text(store.t("Abrir documento")).font(.system(size: 12.5, weight: .medium))
+                        Spacer(minLength: 4)
+                        Text("⌘O").font(.system(size: 10.5)).foregroundStyle(palette.faint)
+                    }
+                    .padding(.leading, 12).padding(.trailing, 8).padding(.vertical, 10)
+                    .contentShape(Rectangle())
                 }
-                .foregroundStyle(palette.strong)
-                .padding(.horizontal, 12).padding(.vertical, 10)
-                .sidebarCard(palette).contentShape(Rectangle())
-            }.buttonStyle(.plain).padding(.horizontal, 12)
+                .buttonStyle(.plain)
+                .help(store.t("Abrir un archivo de este Mac") + " · ⌘O")
+                Rectangle().fill(palette.cardBorder).frame(width: 1, height: 18)
+                Menu {
+                    Button { store.openPanel() } label: {
+                        Label(store.t("Archivo de este Mac…"), systemImage: "doc")
+                    }
+                    Button { store.promptForLink() } label: {
+                        Label(store.t("Enlace web…"), systemImage: "globe")
+                    }
+                    Divider()
+                    Button { store.openWorkspacePanel() } label: {
+                        Label(store.t("Carpeta de trabajo…"), systemImage: "folder")
+                    }
+                } label: {
+                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold))
+                        .frame(width: 30, height: 30).contentShape(Rectangle())
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .tint(palette.label)
+                .fixedSize()
+                .padding(.horizontal, 4)
+                .help(store.t("Abrir desde un archivo, un enlace o una carpeta"))
+                .accessibilityLabel(store.t("Más formas de abrir"))
+            }
+            .foregroundStyle(palette.strong)
+            .sidebarCard(palette)
+            .padding(.horizontal, 12)
 
             HStack(spacing: 8) {
                 smallAction(store.t("Nueva nota"), symbol: "square.and.pencil", keys: "⌘N", action: store.newNote)
