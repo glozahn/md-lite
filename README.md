@@ -112,8 +112,12 @@ Requires **macOS 14 Sonoma or later**, on Apple silicon or Intel.
 Or with [Homebrew](https://brew.sh):
 
 ```bash
-brew install --cask glozahn/tap/md-lite
+brew tap glozahn/tap
+brew trust glozahn/tap
+brew install --cask md-lite
 ```
+
+Homebrew asks you to trust a tap before it loads casks from it.
 
 ### Linux (GTK 4)
 
