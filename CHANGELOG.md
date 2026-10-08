@@ -2,6 +2,10 @@
 
 Every release of MD Lite. The newest is at the top; each one is also on [GitHub](https://github.com/glozahn/md-lite/releases).
 
+## 0.4.1 — 2026-10-08
+
+- A link opened in a new tab names its site in the tab and the window while it downloads, instead of *Welcome*.
+
 ## 0.4.0 — 2026-10-08
 
 Your folder is your brain: search it, link it, keep its history, and present from it.
