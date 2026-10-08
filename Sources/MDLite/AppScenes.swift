@@ -190,6 +190,8 @@ struct AppCommands: Commands {
             .keyboardShortcut("s", modifiers: [.command, .control])
         }
         CommandGroup(before: .windowList) {
+            Button(t("Todas las pestañas…")) { document?.showAllTabs = true }
+                .keyboardShortcut("\\", modifiers: [.command, .shift]).disabled(document == nil)
             Button(t("Pestaña siguiente")) { target?.cycleTab(1) }.keyboardShortcut("]", modifiers: [.command, .shift]).disabled(target == nil)
             Button(t("Pestaña anterior")) { target?.cycleTab(-1) }.keyboardShortcut("[", modifiers: [.command, .shift]).disabled(target == nil)
             Divider()

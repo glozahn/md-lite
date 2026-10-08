@@ -35,7 +35,7 @@ struct ShortcutsView: View {
                 (store.t("Imprimir…"), "⌘ P"), (store.t("Nueva ventana"), "⇧ ⌘ N")
             ]),
             (store.t("Pestañas"), [
-                (store.t("Pestaña siguiente"), "⇧ ⌘ ]"), (store.t("Pestaña anterior"), "⇧ ⌘ ["),
+                (store.t("Todas las pestañas"), "⇧ ⌘ \\"), (store.t("Pestaña siguiente"), "⇧ ⌘ ]"), (store.t("Pestaña anterior"), "⇧ ⌘ ["),
                 (store.t("Mover al panel izquierdo"), "⌃ ⌘ ←"), (store.t("Mover al panel derecho"), "⌃ ⌘ →"),
                 (store.t("Cerrar panel"), "⌥ ⌘ W")
             ]),

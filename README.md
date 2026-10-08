@@ -77,6 +77,8 @@ Each window has its own tab strip. **⌘T** opens a clean tab you can drop a fil
 
 Move a tab out with **⌃⌘N** (or *Move to New Window* in its menu) and it becomes its own window, keeping its undo history and reading position. *Keep on Top* in the Window menu leaves a window floating above your other apps while you read.
 
+With many tabs open, the list button at the end of the tab strip (or **⇧⌘\\**) shows every tab in every window with its folder and path; type to filter and press Return to jump.
+
 **⌘W** always closes the innermost thing first: a sheet or popover, then About or Settings, then the tab (and its pane when it was the last one); the app stays open. Open a whole folder with **⇧⌘O** (or drop it on the window) to browse its Markdown files as a tree in the sidebar; hidden and generated folders such as `node_modules` are skipped, and ⌘-click opens a file in a new tab. Settings open with **⌘,**.
 
 Right-click a tab or any file in the sidebar to open it in a new tab or pane, save a copy, duplicate it, export it as HTML or PDF, print it, add it to Favorites, give it Finder tags and colors, reveal it in Finder, or copy its path. Hover a file to see its full path, or click the tab title for a breadcrumb.
@@ -155,6 +157,7 @@ Press **⌘/** inside the app to see them all.
 | Focus mode | ⇧⌘F |
 | New tab · Close · Settings | ⌘T · ⌘W · ⌘, |
 | Next / previous tab · Close pane | ⇧⌘] · ⇧⌘[ · ⌥⌘W |
+| All tabs | ⇧⌘\\ |
 | Move tab to the left / right pane | ⌃⌘← · ⌃⌘→ |
 | New window · Move tab to new window | ⇧⌘N · ⌃⌘N |
 | New note · Open · Open folder | ⌘N · ⌘O · ⇧⌘O |

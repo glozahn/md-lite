@@ -91,6 +91,7 @@ final class ReaderStore: ObservableObject {
     @Published var showQuickSettings = false
     @Published var showQuickOpen = false
     @Published var showFolderSearch = false
+    @Published var showAllTabs = false
     @Published var showHistory = false
 
     /// Puts an earlier version back as the document's text and saves it.

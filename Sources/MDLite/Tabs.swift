@@ -179,7 +179,7 @@ struct TabStrip: View {
 
         GeometryReader { geometry in
             // Tabs share the room evenly, like Safari's compact tabs, and scroll once they hit their minimum width.
-            let extras: CGFloat = 30 + (bench.panes.count == 2 ? 32 : 0)
+            let extras: CGFloat = 30 + (pane.tabs.count > 1 ? 30 : 0) + (bench.panes.count == 2 ? 32 : 0)
             let available = max(0, geometry.size.width - extras)
             let count = CGFloat(max(1, pane.tabs.count))
             let width = min(180, max(112, (available - (count - 1) * spacing) / count))
@@ -204,6 +204,15 @@ struct TabStrip: View {
                 .buttonStyle(.plain).foregroundStyle(.secondary)
                 .help(bench.focusedStore.t("Nueva pestaña") + " · ⌘T")
                 .accessibilityLabel(bench.focusedStore.t("Nueva pestaña"))
+                // With many tabs the names get short; this lists them all with their folders.
+                if pane.tabs.count > 1 {
+                    Button { bench.focus(pane.selected); pane.selected.showAllTabs = true } label: {
+                        Image(systemName: "list.bullet").font(.system(size: 11, weight: .semibold)).frame(width: 26, height: 26).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain).foregroundStyle(.secondary)
+                    .help(bench.focusedStore.t("Todas las pestañas") + " · ⇧⌘\\")
+                    .accessibilityLabel(bench.focusedStore.t("Todas las pestañas"))
+                }
                 Spacer(minLength: 0)
                 if bench.panes.count == 2 {
                     Button { bench.closePane(pane) } label: {

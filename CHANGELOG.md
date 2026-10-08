@@ -13,6 +13,10 @@ Your folder is your brain: search it, link it, keep its history, and present fro
 - **Mentioned in** — the sidebar lists the documents that link to the one in front, with the line that mentions it.
 - **Version History** (*File ▸ Version History…*) keeps earlier saves of each file on this Mac, shows what changed since each one, and restores any of them (the current text is kept first, so a restore can be undone).
 
+### All tabs at a glance
+
+With many tabs open the names get short. The list button at the end of the tab strip, or *Window ▸ Show All Tabs…* (⇧⌘\\), lists every tab in this window and the others with its folder and path. Type to filter, Return to go, hover to close one.
+
 ### Present
 
 *View ▸ Present* (⌥⌘↩) shows a document as slides, one per `---`, over the whole screen. Arrows, space and clicks move; Escape ends. Text is set large and shrinks only when a slide would not fit.
