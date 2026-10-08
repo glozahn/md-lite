@@ -2,6 +2,39 @@
 
 Every release of MD Lite. The newest is at the top; each one is also on [GitHub](https://github.com/glozahn/md-lite/releases).
 
+## 0.4.0 — 2026-10-08
+
+Your folder is your brain: search it, link it, keep its history, and present from it.
+
+### Your folder
+
+- **Search in Folder** (⌥⇧⌘F) finds text in every file of the working folder and jumps to the line.
+- **Wiki links** — `[[Note]]` and `[[Note|shown text]]` open another document by name, wherever it sits in the folder; a note that does not exist yet is offered to be created. ⌘-click follows them in the editor.
+- **Mentioned in** — the sidebar lists the documents that link to the one in front, with the line that mentions it.
+- **Version History** (*File ▸ Version History…*) keeps earlier saves of each file on this Mac, shows what changed since each one, and restores any of them (the current text is kept first, so a restore can be undone).
+
+### Present
+
+*View ▸ Present* (⌥⌘↩) shows a document as slides, one per `---`, over the whole screen. Arrows, space and clicks move; Escape ends. Text is set large and shrinks only when a slide would not fit.
+
+### Math
+
+`$…$` and `$$…$$` (and ` ```math ` blocks) are typeset with MathJax, offline and only when a document contains math, like Mermaid diagrams. `$5` stays a price.
+
+### In Finder
+
+- **Quick Look** — press Space on a Markdown file in Finder to read it formatted, with its images.
+- **Apple silicon and Intel** — one universal app for every Mac that runs macOS 14 or later.
+
+## 0.3.8 — 2026-10-08
+
+MD Lite feels like home: it remembers where you were and gets you anywhere quickly.
+
+- **Pick up where you left off** — windows, tabs and panes come back when you reopen MD Lite, and every file opens where you stopped reading.
+- **Quick Open** (⌥⌘P) — type part of a name to jump to any file in the working folder, your recent files or your favorites.
+- **Paste a link over text** — select words and paste a web address to turn them into a Markdown link.
+- **Paste or drop images** — a screenshot or image pasted into a document is saved in an `assets` folder next to it and linked for you.
+
 ## 0.3.7 — 2026-10-08
 
 MD Lite reads more than Markdown, floats its toolbar on Liquid Glass, reads from the web and runs your scripts.

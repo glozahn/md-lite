@@ -34,6 +34,7 @@ MD Lite follows the [GFM specification](https://github.github.com/gfm/) and rend
 - Block quotes and GitHub alerts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`)
 - Raw HTML as it appears in real READMEs: `<p align="center">`, `<img width>`, `<picture>`, `<details>`, `<kbd>`, `<sub>`, `<sup>`, HTML tables, and comments. Script-like tags are filtered as GFM requires.
 - [Mermaid](https://github.com/mermaid-js/mermaid) diagrams in ` ```mermaid ` blocks, drawn offline
+- Math with `$…$`, `$$…$$` and ` ```math ` blocks, typeset offline with [MathJax](https://www.mathjax.org) only when a document contains it (`$5` stays a price)
 - YAML front matter
 
 ## More than Markdown
@@ -54,6 +55,21 @@ Working folders list these files too, each with its own icon, and Finder offers 
 - **Feeds** — an RSS or Atom link opens as a document: each entry with its date, a plain-text summary and its link.
 - **Open in Terminal** (**⌃⌘T**) opens the document's folder in your terminal (Terminal, iTerm, Warp, Ghostty…, chosen in Settings).
 - **Run** (**⇧⌘R**) runs a `.sh` file, and shell code blocks get a ▶︎ next to *Copy*. MD Lite always asks first and shows the command; the output streams into a panel under the document. Nothing from the web can be run.
+
+## Your folder is your brain
+
+- **Quick Open** (**⌥⌘P**) jumps to any file in the working folder, your recent files or favorites by typing part of its name.
+- **Search in Folder** (**⌥⇧⌘F**) finds text in every file of the working folder and opens the matching line.
+- **Wiki links** — `[[Note]]` or `[[Note|shown text]]` opens another document by name, wherever it sits in the folder. A note that does not exist yet is offered to be created, and ⌘-click follows a link in the editor.
+- **Mentioned in** — the sidebar lists the documents that link to the one in front, with the line that mentions it.
+- **Version History** (*File ▸ Version History…*) keeps earlier saves of each file on this Mac, shows what changed, and restores any of them.
+- **Pick up where you left off** — windows, tabs and panes come back when you reopen MD Lite, and every file opens where you stopped reading.
+- **Paste** a web address over selected words to make a link; paste or drop an image and it is saved in an `assets` folder next to the document and linked.
+
+## Present and preview
+
+- **Present** (**⌥⌘↩**, or ▶︎ in the toolbar) shows a document as slides, one per `---` with a blank line before it, over the whole screen. Arrows, space and clicks move; Esc ends.
+- **Quick Look** — press Space on a Markdown file in Finder to read it formatted, images included.
 
 ## Tabs, panes, and working folders
 
@@ -87,11 +103,17 @@ MD Lite keeps itself up to date. It checks GitHub Releases, downloads the disk i
 
 ## Download
 
-Requires **macOS 14 Sonoma or later** and **Apple silicon**.
+Requires **macOS 14 Sonoma or later**, on Apple silicon or Intel.
 
 1. Download the latest [DMG from GitHub Releases](https://github.com/glozahn/md-lite/releases/latest).
 2. Drag **MD Lite** into **Applications**.
 3. Open a `.md` file from Finder or press **⌘O** inside the app.
+
+Or with [Homebrew](https://brew.sh):
+
+```bash
+brew install --cask glozahn/tap/md-lite
+```
 
 ### Linux (GTK 4)
 
@@ -145,6 +167,8 @@ Press **⌘/** inside the app to see them all.
 | Paste and read clipboard Markdown | ⇧⌘V |
 | Reload from disk · Print | ⌘R · ⌘P |
 | Open Link · Open in Terminal · Run | ⌥⌘O · ⌃⌘T · ⇧⌘R |
+| Quick Open · Search in Folder | ⌥⌘P · ⌥⇧⌘F |
+| Present | ⌥⌘↩ |
 | Keyboard shortcuts | ⌘/ |
 
 ## Build from source
@@ -187,6 +211,7 @@ Documents stay on your Mac. Preferences and recent file paths are stored locally
 
 - **Remote images** are blocked until you click **Show** (or enable *Always load remote images*).
 - **Mermaid** runs offline in a hidden WebKit view with network access blocked. The library ships xz-compressed (about 750 KB) and is only loaded when a document contains a diagram.
+- **MathJax** works the same way for formulas: xz-compressed (about 540 KB), offline, and only loaded when a document contains math.
 - **Update checks** make one request to the GitHub Releases API, only when you ask or when you enable automatic checks.
 
 ## Contributing
