@@ -92,6 +92,8 @@ final class ReaderStore: ObservableObject {
     @Published var showQuickOpen = false
     @Published var showFolderSearch = false
     @Published var showAllTabs = false
+    /// The link being downloaded into this tab, until it arrives.
+    @Published private(set) var loadingURL: URL?
     @Published var showHistory = false
 
     /// Puts an earlier version back as the document's text and saves it.
@@ -159,6 +161,8 @@ final class ReaderStore: ObservableObject {
             let name = remoteURL.deletingPathExtension().lastPathComponent
             return isFeed || name.isEmpty || name == "/" || name == "raw" ? (remoteURL.host ?? "Web") : name
         }
+        // While a link downloads, the tab and window already name the site, not the page underneath.
+        if let loading = loadingURL { return loading.host ?? "Web" }
         if isNewNote { return t("Nueva nota") }
         if isBlank { return t("Nueva pestaña") }
         if isChangelog { return t("Novedades") }
@@ -491,8 +495,9 @@ final class ReaderStore: ObservableObject {
         guard WebSources.isWeb(url) else { return }
         guard remoteURL == url || confirmDiscard() else { return }
         isLoadingRemote = true
+        loadingURL = url
         Task { @MainActor in
-            defer { isLoadingRemote = false }
+            defer { isLoadingRemote = false; loadingURL = nil }
             do {
                 let page = try await WebSources.fetch(url)
                 detach()
