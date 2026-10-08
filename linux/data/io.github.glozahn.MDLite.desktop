@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=MD Lite
+GenericName=Markdown Reader
+GenericName[es]=Lector de Markdown
+Comment=A little space to read — and write
+Comment[es]=Un pequeño espacio para leer y escribir
+Exec=md-lite %U
+Icon=io.github.glozahn.MDLite
+Terminal=false
+StartupNotify=true
+Categories=Utility;TextEditor;GTK;
+MimeType=text/markdown;text/x-markdown;
+Keywords=markdown;md;reader;editor;notes;gfm;mermaid;
+Keywords[es]=markdown;md;lector;editor;notas;gfm;mermaid;

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.glozahn.MDLite</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>MD Lite</name>
+  <summary>A little space to read — and write</summary>
+  <summary xml:lang="es">Un pequeño espacio para leer y escribir</summary>
+  <developer id="io.github.glozahn">
+    <name>MD Lite contributors</name>
+  </developer>
+  <description>
+    <p>
+      MD Lite is a lightweight, native Markdown reader and editor. It renders GitHub Flavored Markdown
+      the way GitHub does — tables, task lists, alerts, raw HTML from real READMEs and Mermaid diagrams —
+      and lets you write with the formatting in view.
+    </p>
+    <p xml:lang="es">
+      MD Lite es un lector y editor de Markdown nativo y ligero. Muestra GitHub Flavored Markdown como
+      GitHub — tablas, listas de tareas, alertas, el HTML de los README reales y diagramas Mermaid — y
+      te deja escribir con el formato a la vista.
+    </p>
+    <ul>
+      <li>Reading, Editor, Source and Split modes</li>
+      <li>Tabs, two side-by-side panes and working folders</li>
+      <li>Files save themselves as you type</li>
+      <li>Remote images stay blocked until you ask for them</li>
+      <li>Export to HTML and PDF</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.glozahn.MDLite.desktop</launchable>
+  <url type="homepage">https://github.com/glozahn/md-lite</url>
+  <url type="bugtracker">https://github.com/glozahn/md-lite/issues</url>
+  <url type="vcs-browser">https://github.com/glozahn/md-lite</url>
+  <provides>
+    <binary>md-lite</binary>
+    <mediatype>text/markdown</mediatype>
+  </provides>
+  <categories>
+    <category>Utility</category>
+    <category>TextEditor</category>
+  </categories>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Reading a document</caption>
+      <image>https://raw.githubusercontent.com/glozahn/md-lite/main/docs/screenshots/linux-reading.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Writing with the formatting in view</caption>
+      <image>https://raw.githubusercontent.com/glozahn/md-lite/main/docs/screenshots/linux-editor.png</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.3.5" date="2026-09-23">
+      <description>
+        <p>First native GTK 4 release for Linux.</p>
+      </description>
+    </release>
+  </releases>
+</component>

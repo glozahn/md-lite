@@ -4,3 +4,5 @@ dist/
 .DS_Store
 *.xcodeproj/xcuserdata/
 scripts/notarize.env
+linux/target/
+linux/dist/

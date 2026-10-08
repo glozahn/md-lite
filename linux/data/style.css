@@ -1,0 +1,34 @@
+textview.md-text, textview.md-text > text { background-color: transparent; }
+.md-page { background-color: var(--view-bg-color); }
+
+.md-table { border-top: 1px solid alpha(currentColor, 0.14); border-left: 1px solid alpha(currentColor, 0.14); }
+.md-cell { border-right: 1px solid alpha(currentColor, 0.14); border-bottom: 1px solid alpha(currentColor, 0.14); padding: 6px 12px; }
+.md-head { background-color: alpha(currentColor, 0.05); }
+.md-stripe { background-color: alpha(currentColor, 0.022); }
+
+.md-chip { min-height: 0; padding: 1px 7px; margin: 0 2px; font-size: 0.85em; border-radius: 6px; background-color: alpha(currentColor, 0.07); color: alpha(currentColor, 0.7); }
+.md-check { margin: 0; padding: 0; min-height: 0; min-width: 0; }
+.md-check check { margin: 0 2px; }
+
+.md-alert-icon.md-note { color: #0969DA; }
+.md-alert-icon.md-tip { color: #1A7F37; }
+.md-alert-icon.md-important { color: #8250DF; }
+.md-alert-icon.md-warning { color: #9A6700; }
+.md-alert-icon.md-caution { color: #CF222E; }
+.md-dark .md-alert-icon.md-note { color: #4493F8; }
+.md-dark .md-alert-icon.md-tip { color: #3FB950; }
+.md-dark .md-alert-icon.md-important { color: #AB7DF8; }
+.md-dark .md-alert-icon.md-warning { color: #D29922; }
+.md-dark .md-alert-icon.md-caution { color: #F85149; }
+
+.md-footer { padding: 3px 14px 4px 14px; font-size: 0.8em; color: alpha(currentColor, 0.55); border-top: 1px solid alpha(currentColor, 0.07); }
+.md-format-bar { padding: 2px 8px; }
+.md-format-bar button { min-height: 28px; min-width: 28px; padding: 0 6px; font-weight: 600; }
+.md-sidebar { background-color: var(--sidebar-bg-color); }
+.md-outline row { min-height: 30px; padding-top: 2px; padding-bottom: 2px; }
+.md-outline-top { font-weight: 600; }
+.md-section-title { font-size: 0.75em; font-weight: 700; letter-spacing: 0.06em; color: alpha(currentColor, 0.55); }
+.md-swatch { min-width: 22px; min-height: 22px; padding: 0; border-radius: 999px; box-shadow: inset 0 0 0 1px alpha(black, 0.12); }
+.md-swatch:checked { box-shadow: 0 0 0 2px var(--window-bg-color), 0 0 0 4px alpha(currentColor, 0.7); }
+.md-keys { font-family: monospace; font-size: 0.9em; }
+.md-modes button { padding-left: 10px; padding-right: 10px; }

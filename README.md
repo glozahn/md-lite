@@ -4,7 +4,7 @@
 
 **A little space to read — and write.**
 
-A lightweight, native Markdown reader and editor for macOS. Built with SwiftUI, AppKit, TextKit, and Swift Markdown. The whole app is under 4 MB.
+A lightweight, native Markdown reader and editor for macOS. Built with SwiftUI, AppKit, TextKit, and Swift Markdown. The whole app is under 4 MB. On Linux it is a native GTK 4 app written in Rust, about 2 MB to download.
 
 [![Latest release](https://img.shields.io/github/v/release/glozahn/md-lite?style=flat-square&color=167c87&label=download)](https://github.com/glozahn/md-lite/releases/latest) [![Build status](https://img.shields.io/github/actions/workflow/status/glozahn/md-lite/swift.yml?style=flat-square&label=tests)](https://github.com/glozahn/md-lite/actions/workflows/swift.yml) [![MIT license](https://img.shields.io/github/license/glozahn/md-lite?style=flat-square&color=167c87)](LICENSE) ![macOS 14 or later](https://img.shields.io/badge/macOS-14%2B-111820?style=flat-square)
 
@@ -62,6 +62,10 @@ MD Lite keeps itself up to date. It checks GitHub Releases, downloads the disk i
 
 ![Tables, task lists, highlighted code and a Mermaid diagram](docs/screenshots/diagrams.png)
 
+![MD Lite for Linux reading the welcome page](docs/screenshots/linux-reading.png)
+
+![MD Lite for Linux in split view, dark appearance](docs/screenshots/linux-editor.png)
+
 ## Download
 
 Requires **macOS 14 Sonoma or later** and **Apple silicon**.
@@ -70,7 +74,25 @@ Requires **macOS 14 Sonoma or later** and **Apple silicon**.
 2. Drag **MD Lite** into **Applications**.
 3. Open a `.md` file from Finder or press **⌘O** inside the app.
 
-### Windows and Linux
+### Linux (GTK 4)
+
+MD Lite for Linux is a native GTK 4 and libadwaita app in [`linux/`](linux), written in Rust. It is a port of the macOS app rather than a web view: the same renderer and editor ideas, drawn with GTK text views.
+
+- Reading, Editor, Source, and Split modes; markers hide away from the line you are typing, and **Ctrl+Z** / **Ctrl+Shift+Z** undo across every edit, including checking a task in the reading view.
+- GitHub Flavored Markdown with tables, task lists, alerts, raw HTML from real READMEs, syntax highlighting, and Mermaid diagrams drawn offline in a hidden WebKit view.
+- Tabs you can drag between two panes or out into a new window, working folders, favorites and recent files, an outline that follows you, and focus mode.
+- Files save themselves as you type and reload when another app changes them. Remote images stay blocked until you click **Show**.
+- Export to HTML and PDF, print, Spanish and English, light and dark appearance, and the system accent color.
+
+On Fedora, install the RPM from a release (or build it yourself, see [Build from source](#build-from-source)):
+
+```sh
+sudo dnf install ./md-lite-0.3.5-1.fc44.x86_64.rpm
+```
+
+The shortcuts are the ones below with **Ctrl** in place of **⌘**; **F9** shows or hides the sidebar and **F11** enters focus mode.
+
+### Windows and Linux (Tauri)
 
 Each release also ships **MD Lite for Windows** (`MD-Lite-…-windows-x64-setup.exe`, installs for the current user, no admin rights) and **MD Lite for Linux** (`.AppImage` and `.deb`). It is a separate, lightweight [Tauri](https://tauri.app) app in [`desktop/`](desktop) that uses the system WebView: the same GitHub Flavored Markdown, HTML, alerts, code highlighting, and Mermaid rendering; Reading, Editor, Source, and Split modes with undo; tabs; working folders; autosave; the outline navigator; and `Ctrl` versions of the shortcuts. The Windows installer is not code-signed yet, so SmartScreen may ask you to confirm the first launch.
 
@@ -126,6 +148,16 @@ npm run tauri build
 ```
 
 GitHub Actions builds both platforms and attaches the installers to each release (`.github/workflows/desktop.yml`).
+
+The native Linux app builds with Rust 1.82 or later against GTK 4.14, libadwaita 1.6, WebKitGTK 6.0, and libsoup 3. On Fedora:
+
+```sh
+sudo dnf install gtk4-devel libadwaita-devel webkitgtk6.0-devel libsoup3-devel rpm-build
+cd linux
+cargo test
+make                 # target/release/md-lite
+sudo make install    # or: make rpm, which writes the package to linux/dist/
+```
 
 Create a DMG with `./scripts/build-dmg.sh`. `scripts/notarize-app.sh` signs with a Developer ID, notarizes, and staples the app; it reads your identity and App Store Connect key from environment variables or from a local, git-ignored `scripts/notarize.env` (see `scripts/notarize.env.example`). Certificates and private keys are never stored in the repository.
 

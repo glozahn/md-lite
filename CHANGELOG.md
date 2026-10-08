@@ -2,6 +2,16 @@
 
 Every release of MD Lite. The newest is at the top; each one is also on [GitHub](https://github.com/glozahn/md-lite/releases).
 
+## Unreleased
+
+### MD Lite for Linux, natively
+
+MD Lite now has a native Linux app, built with GTK 4 and libadwaita and written in Rust. It is a port of the macOS app, not a web page in a window: documents are laid out in GTK text views, code boxes, quote bars and task boxes are drawn behind the text, and tables, images and diagrams sit inside it.
+
+It reads and edits the same way. Reading, Editor, Source and Split modes; markers that hide until you reach their line; lists and quotes that continue on Return; tabs that move between two panes or out into a window of their own; working folders, favorites and recent files; autosave, reload when a file changes, export to HTML and PDF. Mermaid diagrams are drawn offline in a hidden WebKit view, and remote images wait for you to click **Show**.
+
+Fedora users can install it as an RPM; `linux/` holds the source, a Makefile and the package spec.
+
 ## 0.3.5 — 2026-09-23
 
 MD Lite now keeps itself up to date, tabs can leave the window, and the changelog lives inside the app.
