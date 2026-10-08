@@ -113,6 +113,11 @@ struct AppCommands: Commands {
             }.keyboardShortcut("n")
             Button(t("Abrir Markdown…")) { (store ?? DocumentRouter.shared.keyStore)?.openPanel() }.keyboardShortcut("o")
             Button(t("Abrir carpeta…")) { (store ?? DocumentRouter.shared.keyStore)?.openWorkspacePanel() }.keyboardShortcut("o", modifiers: [.command, .shift])
+            Button(t("Abrir enlace…")) { document?.promptForLink() }.keyboardShortcut("o", modifiers: [.command, .option])
+            Divider()
+            Button(t("Abrir en Terminal")) { document?.openInTerminal() }.keyboardShortcut("t", modifiers: [.command, .control])
+            Button(t("Ejecutar")) { document?.runScript() }.keyboardShortcut("r", modifiers: [.command, .shift])
+                .disabled(document?.isShellScript != true)
             Menu(t("Abrir reciente")) {
                 ForEach(prefs.recent, id: \.self) { url in
                     Button(url.lastPathComponent) { DocumentRouter.shared.open(url, from: store) }

@@ -346,6 +346,19 @@ final class DocumentRouter {
     /// A tab waiting for the window that is being created to take it over.
     private var adoption: ReaderStore?
 
+    /// Opens a web document in the current tab when it is free, or in a new one.
+    func openRemote(_ url: URL, from store: ReaderStore?) {
+        if let existing = all.first(where: { $0.remoteURL == url }) {
+            existing.workbench?.focus(existing)
+            existing.workbench?.window?.makeKeyAndOrderFront(nil)
+            return
+        }
+        guard let bench = store?.workbench ?? keyBench else { return }
+        let target = bench.focusedStore.canReuseForNewDocument ? bench.focusedStore : bench.newTab()
+        target.openRemote(url)
+        bench.window?.makeKeyAndOrderFront(nil)
+    }
+
     /// Moves `store` out of its window and into a new one, keeping its undo history and position.
     func detach(_ store: ReaderStore) {
         guard let bench = store.workbench else { return }

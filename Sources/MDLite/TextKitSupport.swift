@@ -63,6 +63,9 @@ final class MDBlockDecoration: NSObject {
     var imageSize: NSSize = .zero
     var copyRect: NSRect?
     var copiedAt: Date?
+    /// Shell blocks in local documents get a Run button next to Copy.
+    var runnable = false
+    var runRect: NSRect?
     init(_ kind: Kind) { self.kind = kind }
 }
 
@@ -290,6 +293,14 @@ final class MDLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
                                    color: copied ? accent : .tertiaryLabelColor, weight: .medium)
         let iconRect = NSRect(x: rect.maxX - 30, y: rect.minY + 8, width: 15, height: 15)
         icon?.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+        if decoration.runnable && !copied {
+            let play = MDSymbols.image("play.fill", size: 10.5, color: accent, weight: .medium)
+            let playRect = NSRect(x: iconRect.minX - 26, y: rect.minY + 8, width: 15, height: 15)
+            play?.draw(in: playRect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            decoration.runRect = playRect.insetBy(dx: -7, dy: -6)
+        } else {
+            decoration.runRect = nil
+        }
         var hit = iconRect.insetBy(dx: -8, dy: -6)
         if copied {
             let text = NSAttributedString(string: copiedLabel, attributes: [.font: labelFont, .foregroundColor: accent])
@@ -307,6 +318,7 @@ final class MDTextView: NSTextView {
     var minimumInset: CGFloat = 36
     var verticalInset: CGFloat = 30
     var onToggleTask: ((Int) -> Void)?
+    var onRunCode: ((String, String?) -> Void)?
     var onOpenLink: ((URL) -> Void)?
     var localize: (String) -> String = { $0 }
     var onFocus: (() -> Void)?
@@ -376,6 +388,10 @@ final class MDTextView: NSTextView {
 
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
+        if let decoration = codeBlock(at: point), let rect = decoration.runRect, rect.contains(point), let code = decoration.code {
+            onRunCode?(code, decoration.label)
+            return
+        }
         if let decoration = codeBlock(at: point), let rect = decoration.copyRect, rect.contains(point), let code = decoration.code {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(code, forType: .string)

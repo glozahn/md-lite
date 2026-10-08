@@ -133,7 +133,7 @@ struct DocumentColumn: View {
                 }
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     .overlay { dropOverlay(in: geometry.size) }
-                    .onDrop(of: [.mdliteTab, .fileURL], delegate: PaneDropDelegate(pane: pane, bench: bench, tracker: drop,
+                    .onDrop(of: [.mdliteTab, .fileURL, .url], delegate: PaneDropDelegate(pane: pane, bench: bench, tracker: drop,
                                                                                   width: geometry.size.width, allowSides: bench.panes.count == 1))
             }
             // The bars float on Liquid Glass and the document scrolls underneath them.
@@ -151,6 +151,7 @@ struct DocumentColumn: View {
                     .transition(.opacity)
             }
             }
+            if !store.focusMode { RunPanelSlot(runner: store.runner, store: store) }
             if !store.focusMode { footer }
         }
         .onChange(of: store.focusMode) { _, focused in if focused { store.topInset = 28 } }
@@ -177,7 +178,7 @@ struct DocumentColumn: View {
         GlassGroup {
             VStack(spacing: 6) {
                 toolbar
-                if store.mode != .read && store.kind.isMarkdown {
+                if store.mode != .read && store.kind.isMarkdown && !store.isReadOnly {
                     FormatBar(store: store)
                         .chromeGlass(cornerRadius: 12)
                         .padding(.horizontal, 12)
@@ -248,6 +249,9 @@ struct DocumentColumn: View {
             if !store.isBlank {
                 if !store.kind.isReadOnly { modeSwitcher.chromeGlass(cornerRadius: 16) }
                 HStack(spacing: 0) {
+                    if store.isShellScript {
+                        toolButton("play.fill", label: store.t("Ejecutar") + " · ⇧⌘R") { store.runScript() }
+                    }
                     toolButton("arrow.up.left.and.arrow.down.right", label: store.t("Modo enfoque") + " · ⇧⌘F") { store.toggleFocus() }
                     toolButton("magnifyingglass", label: store.t("Buscar · ⌘F")) { store.find(.showFindInterface) }
                 }
@@ -278,7 +282,7 @@ struct DocumentColumn: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(store.fileURL?.path ?? store.t("Este documento aún no está guardado."))
+        .help(store.fileURL?.path ?? store.remoteURL?.absoluteString ?? store.t("Este documento aún no está guardado."))
         .popover(isPresented: $showPath, arrowEdge: .bottom) {
             PathPopover(store: store).onDisappear { showPath = false }
         }
@@ -343,7 +347,7 @@ struct DocumentColumn: View {
     private func modeButtons(labels: Bool, currentLabel: Bool = true) -> some View {
         HStack(spacing: 2) {
             modeButton(.read, symbol: "book", label: store.t("Lectura"), keys: "⌘1", showLabel: labels, currentLabel: currentLabel)
-            if store.kind.isMarkdown {
+            if store.kind.isMarkdown && !store.isReadOnly {
                 modeButton(.edit, symbol: "pencil.line", label: store.t("Editor"), keys: "⌘2", showLabel: labels, currentLabel: currentLabel)
             }
             modeButton(.source, symbol: "chevron.left.forwardslash.chevron.right", label: store.t("Código"), keys: "⌘3", showLabel: labels, currentLabel: currentLabel)
@@ -543,6 +547,7 @@ struct QuickSettingsView: View {
 /// The Settings window (⌘,): the same preferences in a grouped form, like System Settings.
 struct SettingsView: View {
     @ObservedObject var prefs: AppPreferences
+    @AppStorage("terminalApp") private var terminal = TerminalLauncher.preferred?.id ?? "com.apple.Terminal"
     private func t(_ key: String) -> String { prefs.t(key) }
 
     var body: some View {
@@ -565,6 +570,11 @@ struct SettingsView: View {
             } header: { Text(t("Lectura")) }
             Section {
                 Toggle(t("Actualizar automáticamente"), isOn: $prefs.automaticUpdates)
+                if TerminalLauncher.installed.count > 1 {
+                    Picker(t("Terminal"), selection: $terminal) {
+                        ForEach(TerminalLauncher.installed) { app in Text(app.name).tag(app.id) }
+                    }
+                }
                 SettingsControls.defaultApp(prefs) { DocumentRouter.shared.keyStore?.showDefaultAppGuide = true }
                 HStack {
                     Button(t("Atajos de teclado")) { DocumentRouter.shared.keyStore?.showShortcuts = true }

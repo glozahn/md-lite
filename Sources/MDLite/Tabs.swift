@@ -97,8 +97,16 @@ extension Workbench {
         guard !files.isEmpty else { return false }
         for provider in files {
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                guard let url, url.isFileURL else { return }
-                Task { @MainActor in self.dropFile(url, zone: zone, on: pane) }
+                guard let url else { return }
+                Task { @MainActor in
+                    if url.isFileURL {
+                        self.dropFile(url, zone: zone, on: pane)
+                    } else if WebSources.isWeb(url) {
+                        // A link dragged from a browser is read from the web.
+                        let target = pane.selected.canReuseForNewDocument ? pane.selected : self.newTab(in: pane)
+                        target.openRemote(url)
+                    }
+                }
             }
         }
         return true
@@ -119,7 +127,7 @@ struct PaneDropDelegate: DropDelegate {
         return ratio < 0.3 ? .left : ratio > 0.7 ? .right : .center
     }
 
-    func validateDrop(info: DropInfo) -> Bool { info.hasItemsConforming(to: [.mdliteTab, .fileURL]) }
+    func validateDrop(info: DropInfo) -> Bool { info.hasItemsConforming(to: [.mdliteTab, .fileURL, .url]) }
     func dropEntered(info: DropInfo) { MainActor.assumeIsolated { tracker.show(zone(at: info.location.x)) } }
     func dropExited(info: DropInfo) { MainActor.assumeIsolated { tracker.clear() } }
     func dropUpdated(info: DropInfo) -> DropProposal? {
@@ -130,7 +138,7 @@ struct PaneDropDelegate: DropDelegate {
         MainActor.assumeIsolated {
             let target = tracker.zone ?? zone(at: info.location.x)
             tracker.clear()
-            return bench.handleDrop(info.itemProviders(for: [.mdliteTab, .fileURL]), zone: target, on: pane)
+            return bench.handleDrop(info.itemProviders(for: [.mdliteTab, .fileURL, .url]), zone: target, on: pane)
         }
     }
 }
@@ -142,14 +150,14 @@ private struct TabDropDelegate: DropDelegate {
     let bench: Workbench
     @Binding var targeted: Bool
 
-    func validateDrop(info: DropInfo) -> Bool { info.hasItemsConforming(to: [.mdliteTab, .fileURL]) }
+    func validateDrop(info: DropInfo) -> Bool { info.hasItemsConforming(to: [.mdliteTab, .fileURL, .url]) }
     func dropEntered(info: DropInfo) { targeted = true }
     func dropExited(info: DropInfo) { targeted = false }
     func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
     func performDrop(info: DropInfo) -> Bool {
         targeted = false
         return MainActor.assumeIsolated {
-            bench.handleDrop(info.itemProviders(for: [.mdliteTab, .fileURL]), zone: .center, on: pane, before: anchor)
+            bench.handleDrop(info.itemProviders(for: [.mdliteTab, .fileURL, .url]), zone: .center, on: pane, before: anchor)
         }
     }
 }
@@ -206,7 +214,7 @@ struct TabStrip: View {
         .frame(height: 30)
         .frame(minWidth: 150)
         .background(stripTargeted ? bench.focusedStore.accentColor.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 9))
-        .onDrop(of: [.mdliteTab, .fileURL], isTargeted: $stripTargeted) { providers in
+        .onDrop(of: [.mdliteTab, .fileURL, .url], isTargeted: $stripTargeted) { providers in
             bench.handleDrop(providers, zone: .center, on: pane)
         }
     }
@@ -283,8 +291,8 @@ private struct TabChip: View {
             PathPopover(store: store).onDisappear { showPath = false }
         }
         .onDrag { store.dragProvider() }
-        .onDrop(of: [.mdliteTab, .fileURL], delegate: TabDropDelegate(anchor: store, pane: pane, bench: bench, targeted: $targeted))
-        .help(store.fileURL?.path ?? store.title)
+        .onDrop(of: [.mdliteTab, .fileURL, .url], delegate: TabDropDelegate(anchor: store, pane: pane, bench: bench, targeted: $targeted))
+        .help(store.fileURL?.path ?? store.remoteURL?.absoluteString ?? store.title)
         .contextMenu {
             Button(store.t("Guardar")) { store.save() }
             Button(store.t("Guardar como…")) { store.saveAs() }
@@ -343,6 +351,19 @@ struct PathPopover: View {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(url.path, forType: .string)
                     }
+                }
+                .controlSize(.small)
+            } else if let remote = store.remoteURL {
+                Label(remote.host ?? store.t("Web"), systemImage: "globe").font(.system(size: 12, weight: .semibold))
+                Text(remote.absoluteString).font(.system(size: 10.5, design: .monospaced)).foregroundStyle(.secondary)
+                    .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button(store.t("Abrir en el navegador")) { NSWorkspace.shared.open(remote) }
+                    Button(store.t("Copiar enlace")) {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(remote.absoluteString, forType: .string)
+                    }
+                    Button(store.t("Guardar una copia…")) { store.saveAs() }
                 }
                 .controlSize(.small)
             } else {

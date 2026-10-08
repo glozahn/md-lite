@@ -126,6 +126,7 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
             text.delegate = self
             text.onToggleTask = { [weak self] offset in self?.store.toggleTask(at: offset) }
             text.onOpenLink = { [weak self] url in _ = self?.store.follow(url) }
+            text.onRunCode = { [weak self] code, language in self?.store.runCode(code, language: language) }
             text.localize = { [weak store] key in store?.t(key) ?? key }
             text.onFocus = { [weak self] in
                 guard let self else { return }
@@ -182,14 +183,14 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
             editor.setSelectedRange(NSRange(location: 0, length: 0))
             styleKey = ""
         }
-        let key = "\(store.mode.rawValue)|\(store.fontSize)|\(store.accent)|\(store.isDark)|\(store.fileURL?.path ?? "")|\(store.remoteImagesAllowed)|\(store.kind)"
+        let key = "\(store.mode.rawValue)|\(store.fontSize)|\(store.accent)|\(store.isDark)|\(store.fileURL?.path ?? "")|\(store.remoteImagesAllowed)|\(store.kind)|\(store.remoteURL?.absoluteString ?? "")"
         if key != styleKey, store.mode != .read {
             styleKey = key
             styler = MarkdownStyler(size: store.fontSize, accent: store.accentNSColor, live: store.mode == .edit,
                                     baseURL: store.fileURL?.deletingLastPathComponent())
             styler?.remoteImage = { [weak store] url in store?.cachedRemoteImage(url) }
             editor.isContinuousSpellCheckingEnabled = store.mode == .edit
-            editor.isEditable = !store.kind.isReadOnly
+            editor.isEditable = !store.isReadOnly
             restyle()
         }
         if renderVersion != store.renderVersion {

@@ -168,9 +168,20 @@ struct Sidebar: View {
 
     private var footer: some View {
         HStack(spacing: 8) {
-            Circle().fill(palette.live).frame(width: 7, height: 7)
-                .overlay { Circle().stroke(palette.live.opacity(0.2), lineWidth: 3) }
-            Text(store.t("Lectura local")).font(.system(size: 12))
+            // Where the text in front comes from: this Mac, or a site on the web.
+            if let remote = store.remoteURL {
+                Image(systemName: store.isLoadingRemote ? "arrow.triangle.2.circlepath" : "globe")
+                    .font(.system(size: 11, weight: .medium)).foregroundStyle(store.accentColor)
+                Text(remote.host ?? store.t("Web")).font(.system(size: 12)).lineLimit(1).truncationMode(.middle)
+                    .help(remote.absoluteString)
+            } else if store.isLoadingRemote {
+                ProgressView().controlSize(.mini)
+                Text(store.t("Cargando…")).font(.system(size: 12))
+            } else {
+                Circle().fill(palette.live).frame(width: 7, height: 7)
+                    .overlay { Circle().stroke(palette.live.opacity(0.2), lineWidth: 3) }
+                Text(store.t("Lectura local")).font(.system(size: 12))
+            }
             Spacer()
             Button { AppWindows.showSettings(openSettings) } label: {
                 HStack(spacing: 5) {
@@ -310,6 +321,7 @@ struct FileExtras: View {
         }
         Divider()
         Button(store.t("Mostrar en Finder")) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+        Button(store.t("Abrir en Terminal")) { TerminalLauncher.open(url.deletingLastPathComponent()) }
         Button(store.t("Copiar ruta")) {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(url.path, forType: .string)
@@ -397,6 +409,7 @@ struct WorkspaceSection: View {
                 .help(folder.path)
                 .contextMenu {
                     Button(store.t("Mostrar en Finder")) { NSWorkspace.shared.activateFileViewerSelecting([folder]) }
+                    Button(store.t("Abrir en Terminal")) { TerminalLauncher.open(folder) }
                     Button(store.t("Actualizar carpeta")) { bench.refreshWorkspace() }
                     Button(store.t("Cerrar carpeta")) { bench.setWorkspace(nil) }
                 }
@@ -461,6 +474,7 @@ private struct WorkspaceNodeRow: View {
             .buttonStyle(SidebarRowStyle(palette: palette))
             .contextMenu {
                 Button(store.t("Mostrar en Finder")) { NSWorkspace.shared.activateFileViewerSelecting([node.url]) }
+                Button(store.t("Abrir en Terminal")) { TerminalLauncher.open(node.url) }
                 Button(store.t("Usar como carpeta de trabajo")) { bench.setWorkspace(node.url) }
                 Button(store.t("Copiar ruta")) {
                     NSPasteboard.general.clearContents()

@@ -38,11 +38,15 @@ final class ReaderStore: ObservableObject {
     /// Markdown source of the open document. Not published: the editor owns typing.
     private(set) var source = welcomeMarkdown
     @Published var fileURL: URL?
+    /// A document read from the web. Read-only; "Save a Copy" keeps it.
+    @Published private(set) var remoteURL: URL?
+    @Published private(set) var isFeed = false
+    @Published private(set) var isLoadingRemote = false
     @Published var isPastedDocument = false
     @Published var isNewNote = false
     @Published var showPasteEditor = false
     @Published var pasteDraft = ""
-    var isWelcome: Bool { fileURL == nil && !isPastedDocument && !isNewNote && !isBlank && !isChangelog }
+    var isWelcome: Bool { fileURL == nil && remoteURL == nil && !isPastedDocument && !isNewNote && !isBlank && !isChangelog }
     /// Showing the bundled changelog.
     @Published private(set) var isChangelog = false
     /// An empty tab waiting for a document.
@@ -128,6 +132,10 @@ final class ReaderStore: ObservableObject {
 
     var title: String {
         if let fileURL { return fileURL.deletingPathExtension().lastPathComponent }
+        if let remoteURL {
+            let name = remoteURL.deletingPathExtension().lastPathComponent
+            return isFeed || name.isEmpty || name == "/" || name == "raw" ? (remoteURL.host ?? "Web") : name
+        }
         if isNewNote { return t("Nueva nota") }
         if isBlank { return t("Nueva pestaña") }
         if isChangelog { return t("Novedades") }
@@ -136,7 +144,13 @@ final class ReaderStore: ObservableObject {
     var readingMinutes: Int { max(1, Int(ceil(Double(wordCount) / 220))) }
     var outline: [OutlineItem] { rendered.outline }
     /// What kind of file this tab shows. Notes, pasted text and the welcome page are Markdown.
-    var kind: DocumentKind { fileURL.map { FileTypes.kind(of: $0) ?? .text } ?? .markdown }
+    var kind: DocumentKind {
+        if let fileURL { return FileTypes.kind(of: fileURL) ?? .text }
+        if let remoteURL, !isFeed { return FileTypes.kind(of: remoteURL) ?? .markdown }
+        return .markdown
+    }
+    /// Logs and web pages are only read.
+    var isReadOnly: Bool { kind.isReadOnly || remoteURL != nil }
     /// Lines in the source, for the footer of files that are not prose.
     @Published private(set) var lineCount = 0
     /// A log keeps showing its newest lines while the reader stays at the end, like `tail -f`.
@@ -256,6 +270,8 @@ final class ReaderStore: ObservableObject {
             isPastedDocument = false
             isNewNote = false
             fileURL = url
+            remoteURL = nil
+            isFeed = false
             lastWritten = text
             if !prefs.alwaysLoadRemoteImages { remoteImagesAllowed = false }
             // The live Markdown editor means nothing for code; logs are only read.
@@ -295,6 +311,8 @@ final class ReaderStore: ObservableObject {
         watcher = nil
         reloadWork?.cancel()
         fileURL = nil
+        remoteURL = nil
+        isFeed = false
         lastWritten = nil
     }
 
@@ -323,6 +341,92 @@ final class ReaderStore: ObservableObject {
         mode = .edit
     }
 
+    // MARK: Running
+
+    let runner = ScriptRunner()
+
+    /// A shell script saved on this Mac.
+    var isShellScript: Bool { fileURL != nil && kind == .code(language: "shell") }
+
+    /// Runs this .sh file with the interpreter its first line asks for.
+    func runScript() {
+        guard isShellScript, let file = fileURL else { return }
+        if isDirty { save() }
+        let folder = file.deletingLastPathComponent()
+        let firstLine = source.split(separator: "\n", maxSplits: 1).first.map(String.init) ?? ""
+        let interpreter = firstLine.hasPrefix("#!") ? String(firstLine.dropFirst(2)).trimmingCharacters(in: .whitespaces) : "/bin/sh"
+        let quoted = "'" + file.path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        guard ScriptRunner.confirm(source, title: file.lastPathComponent, folder: folder, prefs: prefs) else { return }
+        runner.run(interpreter + " " + quoted, title: file.lastPathComponent, in: folder)
+    }
+
+    /// Runs a shell code block from this document, in its folder.
+    func runCode(_ code: String, language: String?) {
+        guard remoteURL == nil else { return }
+        if isShellScript { runScript(); return }
+        let folder = TerminalLauncher.folder(for: self)
+        let title = (language ?? "shell") + " · " + self.title
+        guard ScriptRunner.confirm(code, title: title, folder: folder, prefs: prefs) else { return }
+        runner.run(code, title: title, in: folder)
+    }
+
+    func openInTerminal() { TerminalLauncher.open(TerminalLauncher.folder(for: self)) }
+
+    /// Asks for a link to read, suggesting the one on the clipboard.
+    func promptForLink() {
+        let alert = NSAlert()
+        alert.messageText = t("Abrir enlace")
+        alert.informativeText = t("Un archivo Markdown o de texto en la web, un README de GitHub, un gist o un feed RSS.")
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
+        field.placeholderString = "https://github.com/owner/repo"
+        if let link = NSPasteboard.general.string(forType: .string).flatMap(WebSources.link(in:)) { field.stringValue = link.absoluteString }
+        alert.accessoryView = field
+        alert.addButton(withTitle: t("Abrir"))
+        alert.addButton(withTitle: t("Cancelar"))
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        var text = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.isEmpty, !text.contains("://") { text = "https://" + text }
+        guard let url = WebSources.link(in: text) else {
+            error = t("Escribe un enlace que empiece con https://")
+            return
+        }
+        DocumentRouter.shared.openRemote(url, from: self)
+    }
+
+    /// Reads a document from the web: Markdown or any text file behind the link, or a feed.
+    func openRemote(_ url: URL) {
+        guard WebSources.isWeb(url) else { return }
+        guard remoteURL == url || confirmDiscard() else { return }
+        isLoadingRemote = true
+        Task { @MainActor in
+            defer { isLoadingRemote = false }
+            do {
+                let page = try await WebSources.fetch(url)
+                detach()
+                isPastedDocument = false
+                isNewNote = false
+                remoteURL = page.source
+                isFeed = page.isFeed
+                if !prefs.alwaysLoadRemoteImages { remoteImagesAllowed = false }
+                if mode == .edit { mode = .read }
+                replaceSource(page.text)
+                scrollRequest = ScrollRequest(id: scrollRequest.id + 1, target: .top)
+            } catch {
+                self.error = "\(t("No se pudo abrir")) \(url.absoluteString). \(webMessage(error))"
+            }
+        }
+    }
+
+    private func webMessage(_ error: Error) -> String {
+        switch error {
+        case WebSources.Failure.status(let code): return String(format: t("El servidor respondió %d."), code)
+        case WebSources.Failure.tooLarge: return t("Elige un archivo de texto UTF-8 de hasta 5 MB.")
+        case WebSources.Failure.notText: return t("El enlace no lleva a un archivo de texto.")
+        default: return error.localizedDescription
+        }
+    }
+
     /// The bundled changelog, shown as a document like any other.
     @discardableResult
     func readChangelog() -> Bool {
@@ -342,6 +446,11 @@ final class ReaderStore: ObservableObject {
 
     func readPastedText(_ text: String) -> Bool {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        if let link = WebSources.link(in: text) {
+            showPasteEditor = false
+            openRemote(link)
+            return true
+        }
         guard text.utf8.count <= 5_000_000 else {
             error = t("Elige un archivo de texto UTF-8 de hasta 5 MB.")
             return false
@@ -385,9 +494,10 @@ final class ReaderStore: ObservableObject {
         renderWork?.cancel()
         renderPending = false
         renderKey = currentRenderKey
-        let renderer = MarkdownRenderer(size: fontSize, baseURL: fileURL?.deletingLastPathComponent(), accent: accentNSColor, language: resolvedLanguage)
+        let renderer = MarkdownRenderer(size: fontSize, baseURL: (fileURL ?? remoteURL)?.deletingLastPathComponent(), accent: accentNSColor, language: resolvedLanguage)
         renderer.dark = isDark
         renderer.maxImageWidth = min(columnWidth, 1200)
+        renderer.allowsRunning = remoteURL == nil
         renderer.remoteImage = { [weak self] url in self?.cachedRemoteImage(url) }
         let dark = isDark
         renderer.mermaid = { code in MermaidRenderer.shared.result(for: code, dark: dark) }
@@ -429,7 +539,7 @@ final class ReaderStore: ObservableObject {
 
     private func scheduleAutosave() {
         saveWork?.cancel()
-        guard fileURL != nil, !kind.isReadOnly else { return }
+        guard fileURL != nil, !isReadOnly else { return }
         let work = DispatchWorkItem { [weak self] in _ = self?.save() }
         saveWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.9, execute: work)
@@ -439,6 +549,8 @@ final class ReaderStore: ObservableObject {
     func save() -> Bool {
         saveWork?.cancel()
         guard !kind.isReadOnly else { return true }
+        // A web page is kept by saving a copy of it.
+        if remoteURL != nil { return saveAs() }
         guard let fileURL else { return saveAs() }
         return write(to: fileURL)
     }
@@ -446,14 +558,17 @@ final class ReaderStore: ObservableObject {
     @discardableResult
     func saveAs() -> Bool {
         let panel = NSSavePanel()
-        let ext = kind.isMarkdown ? "md" : (fileURL?.pathExtension.isEmpty == false ? fileURL!.pathExtension : "txt")
+        let original = fileURL ?? (isFeed ? nil : remoteURL)
+        let ext = kind.isMarkdown ? "md" : (original?.pathExtension.isEmpty == false ? original!.pathExtension : "txt")
         panel.allowedContentTypes = [UTType(filenameExtension: ext) ?? .plainText]
-        panel.nameFieldStringValue = (fileURL?.deletingPathExtension().lastPathComponent ?? suggestedName) + "." + ext
+        panel.nameFieldStringValue = (fileURL.map { $0.deletingPathExtension().lastPathComponent } ?? (remoteURL != nil ? title : suggestedName)) + "." + ext
         guard panel.runModal() == .OK, let url = panel.url else { return false }
         guard write(to: url) else { return false }
         isPastedDocument = false
         isNewNote = false
         fileURL = url
+        remoteURL = nil
+        isFeed = false
         prefs.addRecent(url)
         watch(url)
         renderNow()
@@ -480,6 +595,7 @@ final class ReaderStore: ObservableObject {
     }
 
     func reload() {
+        if let remoteURL { openRemote(remoteURL); return }
         guard let url = fileURL else { return }
         if isDirty {
             let alert = NSAlert()
@@ -539,7 +655,7 @@ final class ReaderStore: ObservableObject {
     func setMode(_ new: DocumentMode) {
         var new = new
         // Code and data have no live Markdown editor; logs are only read.
-        if kind.isReadOnly { new = .read } else if !kind.isMarkdown, new == .edit { new = .source }
+        if kind.isReadOnly { new = .read } else if !kind.isMarkdown || remoteURL != nil, new == .edit { new = .source }
         guard mode != new else { return }
         mode = new
     }
@@ -603,6 +719,11 @@ final class ReaderStore: ObservableObject {
         }
         if url.isFileURL, FileTypes.isSupported(url) {
             DocumentRouter.shared.open(url, from: self)
+            return true
+        }
+        // A link from a web document to another Markdown file stays in MD Lite.
+        if WebSources.isWeb(url), FileTypes.kind(of: url) == .markdown {
+            DocumentRouter.shared.openRemote(url, from: self)
             return true
         }
         NSWorkspace.shared.open(url)

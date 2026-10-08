@@ -32,6 +32,8 @@ final class MarkdownRenderer {
 
     let size: CGFloat
     let baseURL: URL?
+    /// Shell code blocks get a Run button; never for documents read from the web.
+    var allowsRunning = false
     let accent: NSColor
     let language: String
     var dark = false
@@ -317,6 +319,7 @@ final class MarkdownRenderer {
         decoration.padBottom = 15
         decoration.label = label
         decoration.code = copyable ? text : nil
+        decoration.runnable = allowsRunning && copyable && ["shell", "sh", "bash", "zsh", "console"].contains(SyntaxHighlighter.canonical(language) ?? "")
         let font = NSFont.monospacedSystemFont(ofSize: size * 0.8, weight: .regular)
         let body = NSMutableAttributedString(string: text + "\n", attributes: [.font: font, .foregroundColor: MDColors.codeText])
         SyntaxHighlighter.highlight(body, range: NSRange(location: 0, length: body.length - 1), language: language)
