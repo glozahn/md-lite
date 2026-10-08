@@ -809,13 +809,18 @@ final class ReaderStore: ObservableObject {
     /// Handles links clicked in the document. Returns true when MD Lite handled it.
     @discardableResult
     func follow(_ url: URL) -> Bool {
+        if let target = WikiLinks.target(of: url) {
+            // After the click has focused this document, or that would select its tab again.
+            DispatchQueue.main.async { self.openWikiLink(target) }
+            return true
+        }
         if url.scheme == "x-mdlite-anchor" {
             let anchor = (url.absoluteString.dropFirst("x-mdlite-anchor:".count).removingPercentEncoding ?? "").lowercased()
             if let item = outline.first(where: { $0.anchor == anchor || GFM.slug($0.title) == anchor }) { navigate(item) }
             return true
         }
         if url.isFileURL, FileTypes.isSupported(url) {
-            DocumentRouter.shared.open(url, from: self)
+            DispatchQueue.main.async { DocumentRouter.shared.open(url, from: self) }
             return true
         }
         // A link from a web document to another Markdown file stays in MD Lite.
@@ -825,6 +830,33 @@ final class ReaderStore: ObservableObject {
         }
         NSWorkspace.shared.open(url)
         return true
+    }
+
+    /// Opens the document a `[[link]]` names, or offers to start it next to this one.
+    func openWikiLink(_ target: String) {
+        let files = workbench.map { FolderSearch.files(in: $0.workspaceTree) } ?? []
+        if let found = WikiLinks.resolve(target, from: fileURL, in: files) {
+            DocumentRouter.shared.open(found, from: self)
+            return
+        }
+        guard let folder = fileURL?.deletingLastPathComponent() ?? workbench?.workspace else { NSSound.beep(); return }
+        let path = target.components(separatedBy: "#")[0]
+        let name = (path as NSString).pathExtension.isEmpty ? path + ".md" : path
+        let file = folder.appendingPathComponent(name)
+        let alert = NSAlert()
+        alert.messageText = String(format: t("“%@” todavía no existe"), (path as NSString).lastPathComponent)
+        alert.informativeText = String(format: t("¿Crear %@ en %@?"), name, folder.lastPathComponent)
+        alert.addButton(withTitle: t("Crear nota"))
+        alert.addButton(withTitle: t("Cancelar"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        do {
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try "# \((path as NSString).lastPathComponent)\n\n".write(to: file, atomically: true, encoding: .utf8)
+            workbench?.refreshWorkspace()
+            DocumentRouter.shared.open(file, from: self)
+        } catch {
+            self.error = "\(t("No se pudo guardar")): \(error.localizedDescription)"
+        }
     }
 
     // MARK: Remote images

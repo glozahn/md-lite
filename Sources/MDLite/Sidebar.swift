@@ -122,6 +122,7 @@ struct Sidebar: View {
                         // Code and data have no headings to follow.
                         if store.kind.isMarkdown {
                             OutlineNavigator(store: store, palette: palette, proxy: proxy).padding(.top, 8)
+                            BacklinksSection(store: store, bench: bench, palette: palette)
                         }
                         recentSection
                     }

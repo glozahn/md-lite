@@ -238,6 +238,14 @@ final class MarkdownStyler {
                 span(NSRange(location: range.location + linkRange.location, length: linkRange.length),
                      [.foregroundColor: accent, .mdLinkURL: url])
             }
+            for wiki in WikiLinks.spans(in: text.string) {
+                let local = NSRange(wiki.range, in: text.string)
+                guard NSMaxRange(local) <= range.length, let url = WikiLinks.url(for: wiki.target) else { continue }
+                let whole = NSRange(location: range.location + local.location, length: local.length)
+                span(whole, [.foregroundColor: accent, .mdLinkURL: url])
+                span(NSRange(location: whole.location, length: 2), [.foregroundColor: MDColors.meta])
+                span(NSRange(location: NSMaxRange(whole) - 2, length: 2), [.foregroundColor: MDColors.meta])
+            }
             return
         case is InlineHTML:
             span(range, [.foregroundColor: MDColors.meta])

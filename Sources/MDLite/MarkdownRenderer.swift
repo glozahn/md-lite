@@ -644,15 +644,20 @@ final class MarkdownRenderer {
         case let text as Markdown.Text:
             guard hiddenDepth == 0 else { return }
             let styled = htmlInline(a)
-            let spans = math == nil ? [] : MathSyntax.inlineSpans(in: text.string)
+            // [[Note]] links to another document by name.
+            let wiki = linkDepth == 0 && styled[.link] == nil ? WikiLinks.spans(in: text.string) : []
             var rest = text.string[...]
-            for span in spans {
-                let before = String(text.string[rest.startIndex..<span.range.lowerBound])
-                if linkDepth == 0, styled[.link] == nil { appendAutolinked(before, styled) } else { append(before, styled) }
-                appendInlineMath(span.tex, styled)
+            for span in wiki {
+                appendText(String(text.string[rest.startIndex..<span.range.lowerBound]), styled)
+                var link = styled
+                if let url = WikiLinks.url(for: span.target) {
+                    link[.link] = url
+                    link[.toolTip] = span.target
+                }
+                append(span.label, link)
                 rest = text.string[span.range.upperBound...]
             }
-            if linkDepth == 0, styled[.link] == nil { appendAutolinked(String(rest), styled) } else { append(String(rest), styled) }
+            appendText(String(rest), styled)
         case is Strong:
             a[.font] = NSFontManager.shared.convert(a[.font] as? NSFont ?? bodyFont, toHaveTrait: .boldFontMask)
             inlineChildren(node, a)
@@ -695,6 +700,19 @@ final class MarkdownRenderer {
         default:
             inlineChildren(node, a)
         }
+    }
+
+    /// Plain text with its inline math typeset and bare web addresses linked.
+    private func appendText(_ string: String, _ styled: Attributes) {
+        let spans = math == nil ? [] : MathSyntax.inlineSpans(in: string)
+        var rest = string[...]
+        for span in spans {
+            let before = String(string[rest.startIndex..<span.range.lowerBound])
+            if linkDepth == 0, styled[.link] == nil { appendAutolinked(before, styled) } else { append(before, styled) }
+            appendInlineMath(span.tex, styled)
+            rest = string[span.range.upperBound...]
+        }
+        if linkDepth == 0, styled[.link] == nil { appendAutolinked(String(rest), styled) } else { append(String(rest), styled) }
     }
 
     private func inlineChildren(_ node: Markup, _ attributes: Attributes) {
