@@ -346,6 +346,70 @@ final class ReaderStore: ObservableObject {
         mode = .edit
     }
 
+    // MARK: Images in the editor
+
+    /// The `assets` folder next to the document, where pasted and dropped images go.
+    private func assetsFolder() -> URL? {
+        guard let file = fileURL else {
+            error = t("Guarda el documento antes de añadir imágenes; se guardan junto a él.")
+            return nil
+        }
+        let folder = file.deletingLastPathComponent().appendingPathComponent("assets", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+    }
+
+    private func uniqueName(_ base: String, ext: String, in folder: URL) -> String {
+        let clean = base.lowercased().replacingOccurrences(of: #"[^a-z0-9\-_]+"#, with: "-", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        var name = "\(clean.isEmpty ? "image" : clean).\(ext)"
+        var number = 2
+        while FileManager.default.fileExists(atPath: folder.appendingPathComponent(name).path) {
+            name = "\(clean.isEmpty ? "image" : clean)-\(number).\(ext)"
+            number += 1
+        }
+        return name
+    }
+
+    /// Saves a pasted image as PNG in `assets/` and returns the Markdown that shows it.
+    func saveImage(_ image: NSImage) -> String? {
+        guard let folder = assetsFolder(),
+              let tiff = image.tiffRepresentation, let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else { return nil }
+        let stamp = Date().formatted(.iso8601.year().month().day().time(includingFractionalSeconds: false)).replacingOccurrences(of: ":", with: "")
+        let name = uniqueName((fileURL?.deletingPathExtension().lastPathComponent ?? "image") + "-" + stamp, ext: "png", in: folder)
+        do {
+            try png.write(to: folder.appendingPathComponent(name))
+            return "![](assets/\(name))"
+        } catch {
+            self.error = error.localizedDescription
+            return nil
+        }
+    }
+
+    /// A dropped image file: referenced where it is when it lives beside the document, copied into `assets/` otherwise.
+    func insertImage(file image: URL) {
+        guard kind.isMarkdown, !isReadOnly, let document = fileURL?.deletingLastPathComponent() else {
+            if fileURL == nil { error = t("Guarda el documento antes de añadir imágenes; se guardan junto a él.") }
+            return
+        }
+        var relative: String
+        if image.standardizedFileURL.path.hasPrefix(document.standardizedFileURL.path + "/") {
+            relative = String(image.standardizedFileURL.path.dropFirst(document.standardizedFileURL.path.count + 1))
+        } else {
+            guard let folder = assetsFolder() else { return }
+            let name = uniqueName(image.deletingPathExtension().lastPathComponent, ext: image.pathExtension.lowercased(), in: folder)
+            do { try FileManager.default.copyItem(at: image, to: folder.appendingPathComponent(name)) } catch {
+                self.error = error.localizedDescription
+                return
+            }
+            relative = "assets/" + name
+        }
+        relative = relative.replacingOccurrences(of: " ", with: "%20")
+        if mode == .read { mode = .edit }
+        let alt = image.deletingPathExtension().lastPathComponent
+        DispatchQueue.main.async { [weak self] in self?.document?.insert("![\(alt)](\(relative))") }
+    }
+
     // MARK: Running
 
     let runner = ScriptRunner()

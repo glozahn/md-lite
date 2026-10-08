@@ -319,6 +319,30 @@ final class MDTextView: NSTextView {
     var verticalInset: CGFloat = 30
     var onToggleTask: ((Int) -> Void)?
     var onRunCode: ((String, String?) -> Void)?
+    /// Markdown pastes: a link over selected text becomes a link, an image becomes a file next to the document.
+    var pastesMarkdown = false
+    var onPasteImage: ((NSImage) -> String?)?
+
+    // A plain-text view disables Paste for an image-only clipboard; Markdown documents take images.
+    override var readablePasteboardTypes: [NSPasteboard.PasteboardType] {
+        pastesMarkdown ? super.readablePasteboardTypes + [.png, .tiff] : super.readablePasteboardTypes
+    }
+
+    override func paste(_ sender: Any?) {
+        guard isEditable, pastesMarkdown else { super.paste(sender); return }
+        let board = NSPasteboard.general
+        let selection = selectedRange()
+        if selection.length > 0, let text = board.string(forType: .string), let link = WebSources.link(in: text) {
+            let selected = (string as NSString).substring(with: selection)
+            insertText("[\(selected)](\(link.absoluteString))", replacementRange: selection)
+            return
+        }
+        if board.string(forType: .string) == nil, let image = NSImage(pasteboard: board), let markdown = onPasteImage?(image) {
+            insertText(markdown, replacementRange: selection)
+            return
+        }
+        super.paste(sender)
+    }
     var onOpenLink: ((URL) -> Void)?
     var localize: (String) -> String = { $0 }
     var onFocus: (() -> Void)?

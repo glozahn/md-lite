@@ -69,6 +69,11 @@ extension Workbench {
 
     /// A file or folder dropped on a pane.
     func dropFile(_ url: URL, zone: DropZone, on pane: Pane) {
+        if zone == .center, let type = UTType(filenameExtension: url.pathExtension), type.conforms(to: .image),
+           pane.selected.kind.isMarkdown, pane.selected.fileURL != nil {
+            pane.selected.insertImage(file: url)
+            return
+        }
         var isFolder: ObjCBool = false
         if FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder), isFolder.boolValue {
             setWorkspace(url)

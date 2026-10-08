@@ -12,6 +12,8 @@ protocol DocumentEditing: AnyObject {
     func perform(_ action: FormatAction)
     func toggleTask(at offset: Int)
     func find(_ action: NSTextFinder.Action)
+    /// Inserts text at the editor's cursor, as typing would (undoable).
+    func insert(_ text: String)
 }
 
 /// Lays out the reader, the editor, or both side by side with a draggable divider.
@@ -127,6 +129,7 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
             text.onToggleTask = { [weak self] offset in self?.store.toggleTask(at: offset) }
             text.onOpenLink = { [weak self] url in _ = self?.store.follow(url) }
             text.onRunCode = { [weak self] code, language in self?.store.runCode(code, language: language) }
+            text.onPasteImage = { [weak self] image in self?.store.saveImage(image) }
             text.localize = { [weak store] key in store?.t(key) ?? key }
             text.onFocus = { [weak self] in
                 guard let self else { return }
@@ -193,6 +196,7 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
             styler?.remoteImage = { [weak store] url in store?.cachedRemoteImage(url) }
             editor.isContinuousSpellCheckingEnabled = store.mode == .edit
             editor.isEditable = !store.isReadOnly
+            editor.pastesMarkdown = store.kind.isMarkdown
             restyle()
         }
         if renderVersion != store.renderVersion {
@@ -459,6 +463,11 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
         let checked = text.character(at: offset + 1) != 32
         editor.replace(NSRange(location: offset + 1, length: 1), with: checked ? " " : "x")
         if store.mode == .read { store.renderNow() }
+    }
+
+    func insert(_ text: String) {
+        let range = editor.selectedRange()
+        editor.insertText(text, replacementRange: range)
     }
 
     func find(_ action: NSTextFinder.Action) {
