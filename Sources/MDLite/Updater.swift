@@ -18,6 +18,18 @@ final class Updater: ObservableObject {
     @Published private(set) var working = false
     @Published private(set) var failure: String?
 
+    /// What Check for Updates shows while it works.
+    enum Phase: Equatable {
+        case idle, checking, upToDate
+        /// A newer release that this copy cannot install itself (run from a disk image, for example).
+        case available(version: String, page: URL)
+        case downloading(version: String, fraction: Double?)
+        case verifying(version: String)
+        case ready(version: String)
+        case failed(String)
+    }
+    @Published private(set) var phase: Phase = .idle
+
     private var stagingFolder: URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("MD Lite/Updates", isDirectory: true)
@@ -46,67 +58,51 @@ final class Updater: ObservableObject {
     }
 
     /// Returns true when it took over, so the caller can skip the download-in-a-browser path.
-    @discardableResult
-    func checkNow(_ prefs: AppPreferences) -> Bool {
-        guard canInstall else { return false }
-        if let ready {
-            install(relaunch: true, version: ready.version)
-            return true
-        }
-        guard !working else { return true }
+    /// Check for Updates: the window follows `phase`, from checking to a download bar or "up to date".
+    func checkNow(_ prefs: AppPreferences) {
+        if let ready { phase = .ready(version: ready.version); return }
+        guard !working else { return }
         Task { await check(prefs, userInitiated: true) }
-        return true
     }
 
     private func check(_ prefs: AppPreferences, userInitiated: Bool) async {
         working = true
         failure = nil
+        if userInitiated { phase = .checking }
         defer { working = false }
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "lastUpdateCheck")
         do {
             guard let release = try await UpdateChecker.latest(),
                   UpdateChecker.isNewer(release.version, than: UpdateChecker.currentVersion) else {
-                if userInitiated { upToDate(prefs) }
-                return
-            }
-            guard let download = release.download else {
-                if userInitiated { NSWorkspace.shared.open(release.page) }
+                if userInitiated { phase = .upToDate }
                 return
             }
             let version = release.version.trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
-            let app = try await fetchAndVerify(download, checksum: release.checksum, version: version)
+            guard canInstall, let download = release.download else {
+                if userInitiated { phase = .available(version: version, page: release.page) }
+                return
+            }
+            if userInitiated { phase = .downloading(version: version, fraction: nil) }
+            let app = try await fetchAndVerify(download, checksum: release.checksum, version: version) { [weak self] fraction in
+                guard userInitiated else { return }
+                self?.phase = fraction >= 1 ? .verifying(version: version) : .downloading(version: version, fraction: fraction)
+            }
             ready = Ready(version: version, app: app)
+            if userInitiated { phase = .ready(version: version) }
         } catch {
             let message = (error as? UpdateError)?.message ?? error.localizedDescription
             failure = message
-            if userInitiated {
-                let alert = NSAlert()
-                alert.messageText = prefs.t("No se pudo actualizar")
-                alert.informativeText = message
-                alert.addButton(withTitle: prefs.t("Entendido"))
-                alert.addButton(withTitle: prefs.t("Ver novedades"))
-                if alert.runModal() == .alertSecondButtonReturn,
-                   let page = URL(string: "https://github.com/\(UpdateChecker.repository)/releases/latest") {
-                    NSWorkspace.shared.open(page)
-                }
-            }
+            if userInitiated { phase = .failed(message) }
         }
-    }
-
-    private func upToDate(_ prefs: AppPreferences) {
-        let alert = NSAlert()
-        alert.messageText = prefs.t("MD Lite está al día")
-        alert.informativeText = String(format: prefs.t("Tienes la versión más reciente (%@)."), UpdateChecker.currentVersion)
-        alert.runModal()
     }
 
     // MARK: Download and checks
 
-    private func fetchAndVerify(_ download: URL, checksum: URL?, version: String) async throws -> URL {
+    private func fetchAndVerify(_ download: URL, checksum: URL?, version: String,
+                                progress: @escaping @MainActor (Double) -> Void) async throws -> URL {
         let session = URLSession(configuration: .ephemeral)
-        let (file, response) = try await session.download(from: download)
+        let file = try await DownloadWithProgress(url: download, progress: progress).run()
         defer { try? FileManager.default.removeItem(at: file) }
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw UpdateError.download }
 
         if let checksum, let expected = try? await session.data(from: checksum).0,
            let text = String(data: expected, encoding: .utf8)?.split(separator: " ").first {
@@ -247,5 +243,60 @@ final class Updater: ObservableObject {
             case .signature, .notarization: return prefs.t("La actualización no está firmada por el mismo desarrollador.")
             }
         }
+    }
+}
+
+/// A download that reports how far along it is, for the bar in Check for Updates.
+private final class DownloadWithProgress: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    private let url: URL
+    private let progress: @MainActor (Double) -> Void
+    private var continuation: CheckedContinuation<URL, Error>?
+    private var lastReported = -1.0
+
+    init(url: URL, progress: @escaping @MainActor (Double) -> Void) {
+        self.url = url
+        self.progress = progress
+    }
+
+    func run() async throws -> URL {
+        try await withCheckedThrowingContinuation { continuation in
+            self.continuation = continuation
+            let session = URLSession(configuration: .ephemeral, delegate: self, delegateQueue: nil)
+            session.downloadTask(with: url).resume()
+            session.finishTasksAndInvalidate()
+        }
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64,
+                    totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        guard totalBytesExpectedToWrite > 0 else { return }
+        let fraction = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+        guard fraction - lastReported >= 0.01 || fraction >= 1 else { return }
+        lastReported = fraction
+        let report = progress
+        Task { @MainActor in report(fraction) }
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        // The file is deleted when this returns, so move it somewhere it can be read from.
+        guard (downloadTask.response as? HTTPURLResponse)?.statusCode == 200 else {
+            continuation?.resume(throwing: Updater.UpdateError.download); continuation = nil; return
+        }
+        let kept = FileManager.default.temporaryDirectory.appendingPathComponent("mdlite-update-\(UUID().uuidString).dmg")
+        do {
+            try FileManager.default.moveItem(at: location, to: kept)
+            let report = progress
+            Task { @MainActor in report(1) }
+            continuation?.resume(returning: kept)
+        } catch {
+            continuation?.resume(throwing: error)
+        }
+        continuation = nil
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        guard let error else { return }
+        continuation?.resume(throwing: error)
+        continuation = nil
     }
 }

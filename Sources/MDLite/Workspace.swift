@@ -13,11 +13,11 @@ struct DocumentTarget: Codable, Hashable {
 /// document window when they already exist, so bring them to the front ourselves.
 @MainActor
 enum AppWindows {
-    /// SwiftUI's openSettings opens the window; raising it is on us.
-    static func showSettings(_ open: OpenSettingsAction) {
-        if raise("Settings") { return }
-        open()
-        DispatchQueue.main.async { _ = raise("Settings") }
+    /// SwiftUI opens the window; raising it when it is already open is on us.
+    static func showSettings(_ open: OpenWindowAction) {
+        if raise("settings") { return }
+        open(id: "settings")
+        DispatchQueue.main.async { _ = raise("settings") }
     }
 
     @discardableResult

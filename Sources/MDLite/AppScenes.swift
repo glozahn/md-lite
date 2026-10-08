@@ -32,11 +32,16 @@ struct MDLiteApp: App {
         // Files opened from Finder go to DocumentRouter; without this SwiftUI shows About for them.
         .handlesExternalEvents(matching: [])
 
-        Settings {
+        // A plain window rather than a Settings scene: on macOS 26 the Settings scene adds its own
+        // menu item next to ours (which raises the window when it is already open), so it showed twice.
+        Window(Text(prefs.t("Ajustes de MD Lite")), id: "settings") {
             SettingsView(prefs: prefs)
                 .preferredColorScheme(prefs.colorScheme)
                 .background(WindowAccessor { $0.isRestorable = false })
         }
+        .windowResizability(.contentSize)
+        .commandsRemoved()
+        .handlesExternalEvents(matching: [])
     }
 }
 
@@ -76,7 +81,7 @@ struct AppCommands: Commands {
     @FocusedObject private var store: ReaderStore?
     @FocusedObject private var bench: Workbench?
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openSettingsWindow
 
     private func t(_ key: String) -> String { prefs.t(key) }
     /// SwiftUI stops handing over the focused objects in some states (a sheet, a menu opened from
@@ -97,7 +102,7 @@ struct AppCommands: Commands {
             Button(t("Usar MD Lite para abrir .md…")) { (store ?? DocumentRouter.shared.keyStore)?.showDefaultAppGuide = true }
         }
         CommandGroup(replacing: .appSettings) {
-            Button(t("Ajustes…")) { AppWindows.showSettings(openSettings) }.keyboardShortcut(",")
+            Button(t("Ajustes…")) { AppWindows.showSettings(openSettingsWindow) }.keyboardShortcut(",")
         }
         CommandGroup(replacing: .newItem) {
             Button(t("Nueva pestaña")) {

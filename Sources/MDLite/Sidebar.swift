@@ -44,7 +44,7 @@ struct Sidebar: View {
     @ObservedObject var store: ReaderStore
     @ObservedObject var bench: Workbench
     @ObservedObject var prefs = AppPreferences.shared
-    @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openSettingsWindow
     @State private var hoveringRecent = false
     @Environment(\.colorScheme) private var colorScheme
 
@@ -214,7 +214,7 @@ struct Sidebar: View {
                 Text(store.t("Lectura local")).font(.system(size: 12))
             }
             Spacer()
-            Button { AppWindows.showSettings(openSettings) } label: {
+            Button { AppWindows.showSettings(openSettingsWindow) } label: {
                 HStack(spacing: 5) {
                     Image(systemName: "gearshape").font(.system(size: 12))
                     Text(store.t("Ajustes")).font(.system(size: 12))

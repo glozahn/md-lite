@@ -42,7 +42,8 @@ enum UpdateChecker {
     }
 
     static func check(_ store: AppPreferences, userInitiated: Bool) {
-        if userInitiated, Updater.shared.checkNow(store) { return }
+        // Asked for: a window shows the check, the download and the result.
+        if userInitiated { UpdateWindow.show(store); return }
         guard !checking else { return }
         checking = true
         Task {
