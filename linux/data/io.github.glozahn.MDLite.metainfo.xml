@@ -52,6 +52,11 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.3.7" date="2026-10-08">
+      <description>
+        <p>Version in step with the macOS release.</p>
+      </description>
+    </release>
     <release version="0.3.6" date="2026-10-07">
       <description>
         <p>The native GTK 4 app gets a release of its own. Checking a task in the reading view no longer freezes the app.</p>

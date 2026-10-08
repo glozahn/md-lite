@@ -3,7 +3,7 @@
 %global app_id io.github.glozahn.MDLite
 
 Name:           md-lite
-Version:        0.3.6
+Version:        0.3.7
 Release:        1%{?dist}
 Summary:        A lightweight, native Markdown reader and editor
 
@@ -56,6 +56,9 @@ appstreamcli validate --no-net %{buildroot}%{_metainfodir}/%{app_id}.metainfo.xm
 %license %{_datadir}/licenses/md-lite/mermaid-LICENSE
 
 %changelog
+* Thu Oct 08 2026 MD Lite contributors - 0.3.7-1
+- Version in step with the macOS release
+
 * Wed Oct 07 2026 MD Lite contributors - 0.3.6-1
 - First release of its own, with packages built in CI
 - Checking a task in the reader no longer freezes the app

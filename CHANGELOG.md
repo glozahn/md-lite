@@ -2,6 +2,39 @@
 
 Every release of MD Lite. The newest is at the top; each one is also on [GitHub](https://github.com/glozahn/md-lite/releases).
 
+## 0.3.7 — 2026-10-08
+
+MD Lite reads more than Markdown, floats its toolbar on Liquid Glass, reads from the web and runs your scripts.
+
+### More than Markdown
+
+- **Code and scripts** — `.sql`, `.sh`, `.py`, `.js`, `.ts`, `.swift`, `.go`, `.rs`, `.css`, `.html`, `Dockerfile`, `Makefile`, `.diff` and more, highlighted. Source mode edits them in a monospaced font.
+- **Config and data** — `.json` (minified JSON is indented, keys stay in order), `.yaml`, `.toml`, `.ini`, `.env`, `.xml`, `.plist`.
+- **Tables** — `.csv` and `.tsv` as a native table; edit the raw file side by side in Split.
+- **Text** — `.txt` exactly as written.
+- **Logs** — `.log` files are read-only and follow new lines as they arrive, like `tail -f`.
+
+Working folders list these files with an icon per kind, and Finder offers MD Lite under *Open With*.
+
+### Liquid Glass
+
+The toolbar, tabs, mode switcher and format bar float as glass capsules, and the document scrolls underneath with a soft fade, like Safari and Notes on macOS 26.
+
+### From the web
+
+*Open Link* (⌥⌘O), pasting a link, or dragging one from your browser reads a GitHub README, a gist, or any Markdown or text file on the web. RSS and Atom feeds open as a document. The sidebar shows the site instead of *Local reading*; web documents are read-only and *Save a Copy* keeps one. *Open Document* in the sidebar now offers a file, a link or a folder.
+
+### To the terminal
+
+*Open in Terminal* (⌃⌘T) opens the document's folder in Terminal, iTerm, Warp, Ghostty or whichever you choose. *Run* (⇧⌘R) runs a `.sh` file, and shell code blocks get a ▶︎ next to *Copy*. MD Lite always asks first, and the output streams into a panel under the document. Nothing read from the web can be run.
+
+### Fixes
+
+- Opening a file from Finder while MD Lite was closed started the app with no window.
+- A block that starts a document keeps its header.
+
+New tagline: *A little space to read, write, code.*
+
 ## 0.3.6 — 2026-10-07
 
 A release for Linux: the native GTK 4 app gets one of its own.
