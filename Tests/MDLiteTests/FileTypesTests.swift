@@ -74,3 +74,15 @@ final class FileTypesTests: XCTestCase {
         XCTAssertTrue(text.outline.isEmpty)
     }
 }
+
+final class FuzzyMatchTests: XCTestCase {
+    func testFuzzyMatching() {
+        XCTAssertNil(FuzzyMatch.score("xyz", in: "README.md"))
+        XCTAssertNotNil(FuzzyMatch.score("rdm", in: "README.md"))
+        // Starts of words and runs of letters win.
+        let wordStarts = FuzzyMatch.score("bd", in: "build-dmg.sh")!
+        let scattered = FuzzyMatch.score("bd", in: "abbreviated.md")!
+        XCTAssertGreaterThan(wordStarts, scattered)
+        XCTAssertGreaterThan(FuzzyMatch.score("read", in: "README.md")!, FuzzyMatch.score("read", in: "r-e-a-d.md")!)
+    }
+}

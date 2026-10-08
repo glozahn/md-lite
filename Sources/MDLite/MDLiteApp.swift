@@ -167,6 +167,7 @@ struct DocumentColumn: View {
         .animation(.snappy(duration: 0.2), value: store.mode)
         .sheet(isPresented: $store.showPasteEditor) { PasteEditor(store: store) }
         .sheet(isPresented: $store.showShortcuts) { ShortcutsView(store: store) }
+        .sheet(isPresented: $store.showQuickOpen) { QuickOpenView(store: store, bench: bench) }
         .sheet(isPresented: $store.showDefaultAppGuide) { DefaultAppGuide(store: store) }
         .alert(store.t("No se pudo leer el archivo"), isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) {
             Button(store.t("Entendido"), role: .cancel) { store.error = nil }

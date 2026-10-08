@@ -89,6 +89,7 @@ final class ReaderStore: ObservableObject {
     @Published var showShortcuts = false
     @Published var showDefaultAppGuide = false
     @Published var showQuickSettings = false
+    @Published var showQuickOpen = false
     @Published private(set) var remoteImagesAllowed: Bool
     @Published private(set) var isDark = false
     let id = UUID()

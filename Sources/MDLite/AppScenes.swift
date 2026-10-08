@@ -118,6 +118,7 @@ struct AppCommands: Commands {
             Button(t("Abrir Markdown…")) { (store ?? DocumentRouter.shared.keyStore)?.openPanel() }.keyboardShortcut("o")
             Button(t("Abrir carpeta…")) { (store ?? DocumentRouter.shared.keyStore)?.openWorkspacePanel() }.keyboardShortcut("o", modifiers: [.command, .shift])
             Button(t("Abrir enlace…")) { document?.promptForLink() }.keyboardShortcut("o", modifiers: [.command, .option])
+            Button(t("Abrir rápido…")) { document?.showQuickOpen = true }.keyboardShortcut("p", modifiers: [.command, .option])
             Divider()
             Button(t("Abrir en Terminal")) { document?.openInTerminal() }.keyboardShortcut("t", modifiers: [.command, .control])
             Button(t("Ejecutar")) { document?.runScript() }.keyboardShortcut("r", modifiers: [.command, .shift])
