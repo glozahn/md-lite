@@ -19,7 +19,7 @@ ln -s /Applications "$STAGING/Applications"
 cat > "$STAGING/README.md" <<INSTALL
 # MD Lite ${VERSION}
 
-**A little space to read — and write.**
+**A little space to read, write, code.**
 
 ## Install
 

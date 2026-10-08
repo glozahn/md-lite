@@ -2,7 +2,7 @@
 
 <img src="docs/brand/md-lite-mark.svg" alt="MD Lite logo" width="180">
 
-**A little space to read — and write.**
+**A little space to read, write, code.**
 
 A lightweight, native Markdown reader and editor for macOS. Built with SwiftUI, AppKit, TextKit, and Swift Markdown. The whole app is under 4 MB. On Linux it is a native GTK 4 app written in Rust, about 2 MB to download.
 
@@ -35,6 +35,18 @@ MD Lite follows the [GFM specification](https://github.github.com/gfm/) and rend
 - Raw HTML as it appears in real READMEs: `<p align="center">`, `<img width>`, `<picture>`, `<details>`, `<kbd>`, `<sub>`, `<sup>`, HTML tables, and comments. Script-like tags are filtered as GFM requires.
 - [Mermaid](https://github.com/mermaid-js/mermaid) diagrams in ` ```mermaid ` blocks, drawn offline
 - YAML front matter
+
+## More than Markdown
+
+MD Lite also opens the plain-text files that live next to your notes, each shown the way it reads best:
+
+- **Code and scripts** — `.sql`, `.sh`, `.py`, `.js`, `.ts`, `.swift`, `.go`, `.rs`, `.css`, `.html`, `Dockerfile`, `Makefile`, `.diff` and more, with syntax highlighting.
+- **Config and data** — `.json` (minified JSON is indented, keys stay in order), `.yaml`, `.toml`, `.ini`, `.env`, `.xml`, `.plist`.
+- **Tables** — `.csv` and `.tsv` appear as a native table; edit the raw file in Source or side by side in Split.
+- **Text** — `.txt` exactly as written, nothing interpreted as Markdown.
+- **Logs** — `.log` files are read-only and follow new lines as they arrive, like `tail -f`; very large logs open at their last 2 MB.
+
+Working folders list these files too, each with its own icon, and Finder offers MD Lite under *Open With* without taking over as their default app.
 
 ## Tabs, panes, and working folders
 

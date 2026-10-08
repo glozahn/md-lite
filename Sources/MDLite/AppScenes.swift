@@ -15,8 +15,10 @@ struct MDLiteApp: App {
         }
         .defaultSize(width: 1180, height: 820)
         .windowStyle(.hiddenTitleBar)
-        // Files from Finder go through DocumentRouter (reuse an empty tab or add one), not a new window.
-        .handlesExternalEvents(matching: [])
+        // Opening a file from Finder needs a scene that accepts the event, or a cold launch shows no
+        // window at all. The windows themselves take the event (below), so a running app does not
+        // spawn a window per file; DocumentRouter then puts the file in a tab.
+        .handlesExternalEvents(matching: ["*"])
         .commands { AppCommands(prefs: prefs) }
 
         Window("About MD Lite", id: "about") {
@@ -49,6 +51,7 @@ struct WorkbenchScene: View {
 
     var body: some View {
         WorkbenchView(bench: bench)
+            .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
             .frame(minWidth: 760, minHeight: 480)
             .environment(\.locale, Locale(identifier: bench.focusedStore.resolvedLanguage))
             .preferredColorScheme(bench.focusedStore.prefs.colorScheme)

@@ -8,7 +8,7 @@ const english = {
   'EN ESTA PÁGINA': 'ON THIS PAGE',
   'Los títulos aparecerán aquí.': 'Headings will appear here.',
   'RECIENTES': 'RECENT',
-  'Un pequeño espacio para leer': 'A little space to read',
+  'Un pequeño espacio para leer, escribir, programar': 'A little space to read, write, code',
   'Ajustes': 'Settings',
   'Filtrar títulos': 'Filter headings',
   'Contraer todo': 'Collapse all',

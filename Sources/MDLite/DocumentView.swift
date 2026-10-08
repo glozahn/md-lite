@@ -170,13 +170,14 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
             editor.setSelectedRange(NSRange(location: 0, length: 0))
             styleKey = ""
         }
-        let key = "\(store.mode.rawValue)|\(store.fontSize)|\(store.accent)|\(store.isDark)|\(store.fileURL?.path ?? "")|\(store.remoteImagesAllowed)"
+        let key = "\(store.mode.rawValue)|\(store.fontSize)|\(store.accent)|\(store.isDark)|\(store.fileURL?.path ?? "")|\(store.remoteImagesAllowed)|\(store.kind)"
         if key != styleKey, store.mode != .read {
             styleKey = key
             styler = MarkdownStyler(size: store.fontSize, accent: store.accentNSColor, live: store.mode == .edit,
                                     baseURL: store.fileURL?.deletingLastPathComponent())
             styler?.remoteImage = { [weak store] url in store?.cachedRemoteImage(url) }
             editor.isContinuousSpellCheckingEnabled = store.mode == .edit
+            editor.isEditable = !store.kind.isReadOnly
             restyle()
         }
         if renderVersion != store.renderVersion {
@@ -255,6 +256,13 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
         switch request.target {
         case .top:
             visibleText.scrollCharacterToTop(0)
+        case .bottom:
+            // A new tab has no size yet on the first pass; scroll once it has been laid out.
+            DispatchQueue.main.async { [weak self] in
+                guard let view = self?.visibleText else { return }
+                if let layout = view.layoutManager, let container = view.textContainer { layout.ensureLayout(for: container) }
+                view.scrollToEndOfDocument(nil)
+            }
         case .heading(let item):
             if store.mode != .edit && store.mode != .source { reader.scrollCharacterToTop(item.range.location) }
             if store.mode != .read {
@@ -275,6 +283,7 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
     }
 
     private func restyle() {
+        if !store.kind.isMarkdown { styleAsCode(); return }
         guard let styler, let storage = editor.textStorage else { return }
         analysis = styler.analyze(storage.string)
         activeLines = currentActiveLines()
@@ -282,6 +291,30 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
         styler.apply(analysis, to: storage, active: activeLines)
         editor.layoutManager?.invalidateGlyphs(forCharacterRange: NSRange(location: 0, length: storage.length), changeInLength: 0, actualCharacterRange: nil)
         editor.typingAttributes = styler.baseAttributes
+        applying = false
+    }
+
+    /// Code, data and plain text are edited as they are: one font, highlighted when there is a language.
+    private func styleAsCode() {
+        guard let storage = editor.textStorage else { return }
+        let kind = store.kind
+        let font = kind.isMonospaced
+            ? NSFont.monospacedSystemFont(ofSize: store.fontSize * 0.86, weight: .regular)
+            : NSFont.systemFont(ofSize: store.fontSize)
+        let style = NSMutableParagraphStyle()
+        style.lineSpacing = store.fontSize * (kind.isMonospaced ? 0.2 : 0.3)
+        style.defaultTabInterval = (" " as NSString).size(withAttributes: [.font: font]).width * 4
+        style.tabStops = []
+        let base: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.labelColor, .paragraphStyle: style]
+        let full = NSRange(location: 0, length: storage.length)
+        applying = true
+        storage.beginEditing()
+        storage.setAttributes(base, range: full)
+        if let language = kind.language, storage.length < 400_000 {
+            SyntaxHighlighter.highlight(storage, range: full, language: language)
+        }
+        storage.endEditing()
+        editor.typingAttributes = base
         applying = false
     }
 
@@ -335,6 +368,12 @@ final class DocumentController: NSObject, NSTextViewDelegate, DocumentEditing {
     // MARK: Scroll spy
 
     @objc private func scrolled(_ notification: Notification) {
+        // Only scrolling moves the clip view; a log growing underneath does not. So this tracks
+        // whether the reader chose to stay at the end.
+        if store.kind == .log, let clip = notification.object as? NSClipView, clip === readerScroll.contentView {
+            let height = clip.documentView?.frame.height ?? 0
+            store.followsEnd = clip.bounds.maxY >= height - 40
+        }
         if store.mode == .split, (notification.object as? NSView) === editorScroll.contentView, !syncScheduled {
             syncScheduled = true
             DispatchQueue.main.async { [weak self] in

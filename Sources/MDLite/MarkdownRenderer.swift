@@ -110,6 +110,33 @@ final class MarkdownRenderer {
         return RenderedDocument(text: output.copy() as! NSAttributedString, outline: outline, blocks: blocks, remoteImages: remote)
     }
 
+    /// A file that is not Markdown, shown as it is: code in a highlighted block, text and logs as written.
+    func render(file text: String, kind: DocumentKind) -> RenderedDocument {
+        output = NSMutableAttributedString()
+        outline = []; blocks = []; remote = []; decorations = []; html = []; htmlTables = []
+        source = text as NSString
+        map = SourceMap(text)
+        switch kind {
+        case .table(let separator):
+            return render(FileTypes.markdownTable(from: text, separator: separator))
+        case .code(let language):
+            var body = language == "json" ? FileTypes.prettyJSON(text) : text
+            while body.hasSuffix("\n") { body.removeLast() }
+            // Highlighting is regex work; past a few hundred KB it would stall opening the file.
+            let highlight = body.utf16.count < 400_000 ? language : nil
+            renderCodeBox(body, language: highlight, label: language, Context())
+        case .text, .log, .markdown:
+            let monospaced = kind == .log
+            let font = monospaced ? NSFont.monospacedSystemFont(ofSize: size * 0.8, weight: .regular) : bodyFont
+            let style = NSMutableParagraphStyle()
+            style.lineSpacing = monospaced ? size * 0.18 : size * 0.3
+            style.paragraphSpacing = 0
+            append(text, [.font: font, .foregroundColor: Context().color, .paragraphStyle: style])
+        }
+        blocks.append((0, 0))
+        return RenderedDocument(text: output.copy() as! NSAttributedString, outline: [], blocks: blocks)
+    }
+
     // MARK: Output helpers
 
     private var bodyFont: NSFont { .systemFont(ofSize: size) }

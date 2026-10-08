@@ -236,7 +236,7 @@ private struct TabChip: View {
 
         ZStack {
             HStack(spacing: 5) {
-                Image(systemName: store.isNewNote ? "square.and.pencil" : (store.isWelcome ? "sparkle" : "doc.text"))
+                Image(systemName: store.isNewNote ? "square.and.pencil" : (store.isWelcome ? "sparkle" : store.kind.symbol))
                     .font(.system(size: 10.5)).foregroundStyle(selected ? store.accentColor : Color.secondary)
                 Text(store.title).font(.system(size: 12, weight: selected ? .medium : .regular))
                     .lineLimit(1).truncationMode(.middle)

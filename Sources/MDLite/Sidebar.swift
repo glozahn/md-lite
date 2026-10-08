@@ -58,13 +58,14 @@ struct Sidebar: View {
                     .resizable().interpolation(.high).frame(width: 42, height: 42)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("MD Lite").font(.system(size: 16, weight: .semibold)).foregroundStyle(palette.strong)
-                    Text(store.t("Un pequeño espacio para leer")).font(.system(size: 11.5)).foregroundStyle(palette.label)
+                    Text(store.t("Un pequeño espacio para\nleer, escribir, programar")).font(.system(size: 11.5)).foregroundStyle(palette.label)
+                        .lineSpacing(1).fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
             }
             .padding(12)
             .sidebarCard(palette, radius: 14)
-            .padding(.top, 40).padding(.horizontal, 12).padding(.bottom, 10)
+            .padding(.top, 12).padding(.horizontal, 12).padding(.bottom, 10)
 
             Button(action: store.openPanel) {
                 HStack(spacing: 9) {
@@ -88,7 +89,10 @@ struct Sidebar: View {
                     VStack(alignment: .leading, spacing: 2) {
                         WorkspaceSection(store: store, bench: bench, palette: palette)
                         FavoritesSection(store: store, bench: bench, palette: palette)
-                        OutlineNavigator(store: store, palette: palette, proxy: proxy).padding(.top, 8)
+                        // Code and data have no headings to follow.
+                        if store.kind.isMarkdown {
+                            OutlineNavigator(store: store, palette: palette, proxy: proxy).padding(.top, 8)
+                        }
                         recentSection
                     }
                     .padding(.horizontal, 12).padding(.vertical, 10)
@@ -122,7 +126,7 @@ struct Sidebar: View {
                 let duplicate = recent.filter { $0.lastPathComponent == url.lastPathComponent }.count > 1
                 Button { DocumentRouter.shared.open(url, from: store) } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: "doc.text").font(.system(size: 12)).foregroundStyle(palette.label)
+                        Image(systemName: (FileTypes.kind(of: url) ?? .text).symbol).font(.system(size: 12)).foregroundStyle(palette.label)
                         Text(url.lastPathComponent).lineLimit(1)
                         if duplicate {
                             Text(url.deletingLastPathComponent().lastPathComponent).foregroundStyle(palette.faint).lineLimit(1)
@@ -474,8 +478,10 @@ private struct WorkspaceNodeRow: View {
             } label: {
                 HStack(spacing: 6) {
                     Spacer().frame(width: 10)
-                    Image(systemName: "doc.text").font(.system(size: 11)).foregroundStyle(selected ? store.accentColor : palette.label)
-                    Text(node.url.deletingPathExtension().lastPathComponent).lineLimit(1)
+                    let kind = FileTypes.kind(of: node.url) ?? .text
+                    Image(systemName: kind.symbol).font(.system(size: 11)).foregroundStyle(selected ? store.accentColor : palette.label)
+                    // Markdown reads as titles; other files keep their extension so schema.sql and schema.md differ.
+                    Text(kind.isMarkdown ? node.url.deletingPathExtension().lastPathComponent : node.url.lastPathComponent).lineLimit(1)
                     Spacer(minLength: 0)
                     if AppPreferences.shared.isFavorite(node.url) {
                         Image(systemName: "star.fill").font(.system(size: 8.5)).foregroundStyle(Color.yellow.opacity(0.9))

@@ -4,7 +4,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum ScrollTarget: Equatable {
-    case none, top
+    case none, top, bottom
     case heading(OutlineItem)
 }
 
@@ -135,6 +135,12 @@ final class ReaderStore: ObservableObject {
     }
     var readingMinutes: Int { max(1, Int(ceil(Double(wordCount) / 220))) }
     var outline: [OutlineItem] { rendered.outline }
+    /// What kind of file this tab shows. Notes, pasted text and the welcome page are Markdown.
+    var kind: DocumentKind { fileURL.map { FileTypes.kind(of: $0) ?? .text } ?? .markdown }
+    /// Lines in the source, for the footer of files that are not prose.
+    @Published private(set) var lineCount = 0
+    /// A log keeps showing its newest lines while the reader stays at the end, like `tail -f`.
+    var followsEnd = true
     /// A tab that only shows the welcome page (or an untouched note) can take the next document.
     var canReuseForNewDocument: Bool { !isDirty && (isBlank || isWelcome || (isNewNote && source.count < 40)) }
 
@@ -231,8 +237,7 @@ final class ReaderStore: ObservableObject {
 
     func openPanel() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText,
-                                     UTType(filenameExtension: "markdown") ?? .plainText, .plainText]
+        panel.allowedContentTypes = FileTypes.contentTypes
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         guard panel.runModal() == .OK else { return }
@@ -251,8 +256,11 @@ final class ReaderStore: ObservableObject {
             fileURL = url
             lastWritten = text
             if !prefs.alwaysLoadRemoteImages { remoteImagesAllowed = false }
+            // The live Markdown editor means nothing for code; logs are only read.
+            if kind.isReadOnly || (!kind.isMarkdown && mode == .edit) { mode = .read }
+            followsEnd = true
             replaceSource(text)
-            scrollRequest = ScrollRequest(id: scrollRequest.id + 1, target: .top)
+            scrollRequest = ScrollRequest(id: scrollRequest.id + 1, target: kind == .log ? .bottom : .top)
             prefs.addRecent(url)
             watch(url)
         } catch {
@@ -262,9 +270,23 @@ final class ReaderStore: ObservableObject {
 
     private func readFile(_ url: URL) throws -> String {
         let values = try url.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey])
-        guard values.isRegularFile == true, (values.fileSize ?? Int.max) <= 5_000_000 else { throw ReaderError.tooLarge }
+        let size = values.fileSize ?? Int.max
+        guard values.isRegularFile == true else { throw ReaderError.tooLarge }
+        // A log can grow without limit; what matters is its end.
+        if FileTypes.kind(of: url) == .log, size > Self.logTail {
+            let handle = try FileHandle(forReadingFrom: url)
+            defer { try? handle.close() }
+            try handle.seek(toOffset: UInt64(size - Self.logTail))
+            let data = try handle.readToEnd() ?? Data()
+            var text = String(decoding: data, as: UTF8.self)
+            if let firstBreak = text.firstIndex(of: "\n") { text = String(text[text.index(after: firstBreak)...]) }
+            return text
+        }
+        guard size <= 5_000_000 else { throw ReaderError.tooLarge }
         return try String(contentsOf: url, encoding: .utf8)
     }
+
+    private static let logTail = 2_000_000
 
     private func detach() {
         watcher?.cancel()
@@ -367,9 +389,10 @@ final class ReaderStore: ObservableObject {
         renderer.remoteImage = { [weak self] url in self?.cachedRemoteImage(url) }
         let dark = isDark
         renderer.mermaid = { code in MermaidRenderer.shared.result(for: code, dark: dark) }
-        rendered = renderer.render(source)
+        rendered = kind.isMarkdown ? renderer.render(source) : renderer.render(file: source, kind: kind)
         renderVersion += 1
         wordCount = source.split(whereSeparator: { $0.isWhitespace }).count
+        lineCount = source.isEmpty ? 0 : source.reduce(into: 1) { if $1 == "\n" { $0 += 1 } }
         if remoteImagesAllowed { loadRemoteImages() }
     }
 
@@ -404,7 +427,7 @@ final class ReaderStore: ObservableObject {
 
     private func scheduleAutosave() {
         saveWork?.cancel()
-        guard fileURL != nil else { return }
+        guard fileURL != nil, !kind.isReadOnly else { return }
         let work = DispatchWorkItem { [weak self] in _ = self?.save() }
         saveWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.9, execute: work)
@@ -413,6 +436,7 @@ final class ReaderStore: ObservableObject {
     @discardableResult
     func save() -> Bool {
         saveWork?.cancel()
+        guard !kind.isReadOnly else { return true }
         guard let fileURL else { return saveAs() }
         return write(to: fileURL)
     }
@@ -420,8 +444,9 @@ final class ReaderStore: ObservableObject {
     @discardableResult
     func saveAs() -> Bool {
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
-        panel.nameFieldStringValue = (fileURL?.deletingPathExtension().lastPathComponent ?? suggestedName) + ".md"
+        let ext = kind.isMarkdown ? "md" : (fileURL?.pathExtension.isEmpty == false ? fileURL!.pathExtension : "txt")
+        panel.allowedContentTypes = [UTType(filenameExtension: ext) ?? .plainText]
+        panel.nameFieldStringValue = (fileURL?.deletingPathExtension().lastPathComponent ?? suggestedName) + "." + ext
         guard panel.runModal() == .OK, let url = panel.url else { return false }
         guard write(to: url) else { return false }
         isPastedDocument = false
@@ -473,11 +498,13 @@ final class ReaderStore: ObservableObject {
             if !force && (updated == lastWritten || updated == source || isDirty) { return }
             lastWritten = updated
             let top = currentHeading
+            let following = kind == .log && followsEnd
             source = updated
             contentVersion += 1
             didReplaceDocument = false
             renderNow()
             currentHeading = top
+            if following { scrollRequest = ScrollRequest(id: scrollRequest.id + 1, target: .bottom) }
         } catch { self.error = "\(t("No se pudo actualizar el documento.")) \(errorMessage(error))" }
     }
 
@@ -508,6 +535,9 @@ final class ReaderStore: ObservableObject {
     // MARK: Modes and navigation
 
     func setMode(_ new: DocumentMode) {
+        var new = new
+        // Code and data have no live Markdown editor; logs are only read.
+        if kind.isReadOnly { new = .read } else if !kind.isMarkdown, new == .edit { new = .source }
         guard mode != new else { return }
         mode = new
     }
@@ -520,9 +550,13 @@ final class ReaderStore: ObservableObject {
         }
     }
 
-    func toggleEditing() { setMode(mode == .edit || mode == .source ? .read : lastEditMode) }
+    func toggleEditing() {
+        if !kind.isMarkdown { setMode(mode == .read ? .source : .read); return }
+        setMode(mode == .edit || mode == .source ? .read : lastEditMode)
+    }
 
     func format(_ action: FormatAction) {
+        guard kind.isMarkdown else { return }
         if mode == .read { mode = .edit }
         DispatchQueue.main.async { [weak self] in self?.document?.perform(action) }
     }
@@ -565,7 +599,7 @@ final class ReaderStore: ObservableObject {
             if let item = outline.first(where: { $0.anchor == anchor || GFM.slug($0.title) == anchor }) { navigate(item) }
             return true
         }
-        if url.isFileURL, ["md", "markdown", "mdown", "mkd"].contains(url.pathExtension.lowercased()) {
+        if url.isFileURL, FileTypes.isSupported(url) {
             DocumentRouter.shared.open(url, from: self)
             return true
         }

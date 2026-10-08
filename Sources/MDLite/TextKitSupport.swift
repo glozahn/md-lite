@@ -432,7 +432,12 @@ final class MDTextView: NSTextView {
         guard let layout = layoutManager, let container = textContainer, let scroll = enclosingScrollView,
               let storage = textStorage else { return }
         let clamped = max(0, min(index, max(0, storage.length - 1)))
-        guard storage.length > 0 else { scroll.contentView.scroll(to: .zero); return }
+        // The very top is the top of the view: a block that starts the document keeps its header.
+        guard storage.length > 0, index > 0 else {
+            scroll.contentView.scroll(to: .zero)
+            scroll.reflectScrolledClipView(scroll.contentView)
+            return
+        }
         let glyph = layout.glyphIndexForCharacter(at: clamped)
         layout.ensureLayout(forGlyphRange: NSRange(location: 0, length: min(layout.numberOfGlyphs, glyph + 1)))
         _ = container

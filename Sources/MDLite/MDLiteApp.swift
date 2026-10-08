@@ -126,7 +126,7 @@ struct DocumentColumn: View {
                 Color.clear.frame(height: 28)
             } else {
                 toolbar
-                if store.mode != .read {
+                if store.mode != .read && store.kind.isMarkdown {
                     FormatBar(store: store)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
@@ -216,7 +216,7 @@ struct DocumentColumn: View {
                 Spacer(minLength: 8)
             }
             if !store.isBlank {
-                modeSwitcher
+                if !store.kind.isReadOnly { modeSwitcher }
                 toolButton("arrow.up.left.and.arrow.down.right", label: store.t("Modo enfoque") + " · ⇧⌘F") { store.toggleFocus() }
                 toolButton("magnifyingglass", label: store.t("Buscar · ⌘F")) { store.find(.showFindInterface) }
             }
@@ -230,12 +230,13 @@ struct DocumentColumn: View {
     private var titleButton: some View {
         Button { showPath = true } label: {
             HStack(spacing: 7) {
-                Image(systemName: store.isNewNote ? "square.and.pencil" : "doc.text").foregroundStyle(.tertiary)
+                Image(systemName: store.isNewNote ? "square.and.pencil" : store.kind.symbol).foregroundStyle(.tertiary)
                 Text(store.title).font(.system(size: 12.5, weight: .medium)).lineLimit(1)
                 if store.isDirty {
                     Circle().fill(store.accentColor).frame(width: 6, height: 6)
                 } else {
-                    Text(".md").font(.system(size: 10, design: .monospaced)).foregroundStyle(.tertiary)
+                    Text("." + (store.fileURL?.pathExtension.isEmpty == false ? store.fileURL!.pathExtension : "md"))
+                        .font(.system(size: 10, design: .monospaced)).foregroundStyle(.tertiary)
                 }
             }
             .padding(.horizontal, 6).padding(.vertical, 4)
@@ -305,7 +306,9 @@ struct DocumentColumn: View {
     private func modeButtons(labels: Bool, currentLabel: Bool = true) -> some View {
         HStack(spacing: 2) {
             modeButton(.read, symbol: "book", label: store.t("Lectura"), keys: "⌘1", showLabel: labels, currentLabel: currentLabel)
-            modeButton(.edit, symbol: "pencil.line", label: store.t("Editor"), keys: "⌘2", showLabel: labels, currentLabel: currentLabel)
+            if store.kind.isMarkdown {
+                modeButton(.edit, symbol: "pencil.line", label: store.t("Editor"), keys: "⌘2", showLabel: labels, currentLabel: currentLabel)
+            }
             modeButton(.source, symbol: "chevron.left.forwardslash.chevron.right", label: store.t("Código"), keys: "⌘3", showLabel: labels, currentLabel: currentLabel)
             modeButton(.split, symbol: "rectangle.split.2x1", label: store.t("Dividida"), keys: "⌘4", showLabel: labels, currentLabel: currentLabel)
         }
@@ -360,10 +363,18 @@ struct DocumentColumn: View {
     private var footer: some View {
         HStack(spacing: 8) {
             UpdateReadyButton(store: store)
-            Image(systemName: "text.alignleft").font(.system(size: 9))
-            Text("\(store.wordCount) " + store.t("palabras"))
-            Text("·")
-            Text("\(store.readingMinutes) " + store.t("min de lectura"))
+            Image(systemName: store.kind.isMarkdown || store.kind == .text ? "text.alignleft" : "number").font(.system(size: 9))
+            if store.kind.isMarkdown || store.kind == .text {
+                Text("\(store.wordCount) " + store.t("palabras"))
+                Text("·")
+                Text("\(store.readingMinutes) " + store.t("min de lectura"))
+            } else {
+                Text("\(store.lineCount) " + store.t("líneas"))
+                if let label = store.kind.label {
+                    Text("·")
+                    Text(label).tracking(0.8)
+                }
+            }
             Text("·")
             ProgressLabel(tracker: store.progressTracker)
             Spacer()
@@ -622,7 +633,7 @@ struct AboutView: View {
             Image(nsImage: NSApp.applicationIconImage).resizable().interpolation(.high).frame(width: 84, height: 84)
             VStack(spacing: 5) {
                 Text("MD Lite").font(.system(size: 24, weight: .semibold))
-                Text("A little space to read.").foregroundStyle(.secondary)
+                Text(prefs.t("Un pequeño espacio para leer, escribir, programar")).foregroundStyle(.secondary)
                 Text("Version \(UpdateChecker.currentVersion) · MIT License").font(.caption).foregroundStyle(.tertiary)
             }
             Text(prefs.t("Un lector Markdown nativo y ligero para macOS."))

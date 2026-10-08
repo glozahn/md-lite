@@ -38,7 +38,7 @@ struct FileNode: Identifiable, Hashable {
     var name: String { url.lastPathComponent }
 }
 
-/// Finds Markdown files under a folder, skipping hidden and generated directories.
+/// Finds the files MD Lite can show under a folder, skipping hidden and generated directories.
 enum WorkspaceScanner {
     static let skipped: Set<String> = ["node_modules", ".git", ".build", "build", "dist", "DerivedData", "Pods", ".next",
                                        "target", "vendor", ".venv", "venv", "__pycache__", ".swiftpm", "Carthage"]
@@ -61,7 +61,7 @@ enum WorkspaceScanner {
                 guard !skipped.contains(item.lastPathComponent) else { continue }
                 let children = scan(item, depth: depth + 1, budget: &budget)
                 if !children.isEmpty { folders.append(FileNode(url: item, isDirectory: true, children: children)) }
-            } else if extensions.contains(item.pathExtension.lowercased()) {
+            } else if FileTypes.isSupported(item) {
                 budget -= 1
                 files.append(FileNode(url: item, isDirectory: false, children: nil))
             }
