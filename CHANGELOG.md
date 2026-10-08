@@ -2,6 +2,15 @@
 
 Every release of MD Lite. The newest is at the top; each one is also on [GitHub](https://github.com/glozahn/md-lite/releases).
 
+## 0.3.8 — 2026-10-08
+
+MD Lite feels like home: it remembers where you were and gets you anywhere quickly.
+
+- **Pick up where you left off** — windows, tabs and panes come back when you reopen MD Lite, and every file opens where you stopped reading.
+- **Quick Open** (⌥⌘P) — type part of a name to jump to any file in the working folder, your recent files or your favorites.
+- **Paste a link over text** — select words and paste a web address to turn them into a Markdown link.
+- **Paste or drop images** — a screenshot or image pasted into a document is saved in an `assets` folder next to it and linked for you.
+
 ## 0.3.7 — 2026-10-08
 
 MD Lite reads more than Markdown, floats its toolbar on Liquid Glass, reads from the web and runs your scripts.

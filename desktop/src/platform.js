@@ -155,7 +155,7 @@ export const platform = {
   },
 
   async version() {
-    if (!isTauri) return '0.3.7';
+    if (!isTauri) return '0.3.8';
     const { appApi } = await tauri();
     return appApi.getVersion();
   },
