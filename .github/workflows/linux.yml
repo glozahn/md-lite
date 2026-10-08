@@ -1,0 +1,82 @@
+name: Linux (GTK 4)
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - 'linux/**'
+      - 'Resources/Mermaid/**'
+      - 'CHANGELOG.md'
+      - 'README.md'
+      - 'LICENSE'
+      - '.github/workflows/linux.yml'
+  pull_request:
+    paths:
+      - 'linux/**'
+      - 'Resources/Mermaid/**'
+      - '.github/workflows/linux.yml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag that receives the RPM (leave empty to only build)
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  rpm:
+    runs-on: ubuntu-latest
+    # Fedora ships the GTK 4.14+, libadwaita 1.6+ and WebKitGTK 6.0 the app needs.
+    container: fedora:44
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            git tar gzip make cargo rust rpm-build desktop-file-utils appstream gh \
+            gtk4-devel libadwaita-devel webkitgtk6.0-devel libsoup3-devel
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-${{ hashFiles('linux/Cargo.lock') }}
+
+      - name: Test
+        working-directory: linux
+        run: cargo test --locked
+
+      - name: Build the RPM
+        working-directory: linux
+        run: make rpm
+
+      - name: Checksums
+        working-directory: linux/dist
+        run: for rpm in *.rpm; do sha256sum "$rpm" > "$rpm.sha256"; done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: md-lite-rpm
+          path: linux/dist/*
+
+      # Tags (or a manual run with a tag) attach the binary RPM to that release.
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          # The Tauri workflow may be creating the same release; wait for it before creating one.
+          for attempt in $(seq 1 20); do
+            gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && break
+            sleep 30
+          done
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "MD Lite $TAG" --notes ""
+          cd linux/dist
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber md-lite-*.x86_64.rpm md-lite-*.x86_64.rpm.sha256
